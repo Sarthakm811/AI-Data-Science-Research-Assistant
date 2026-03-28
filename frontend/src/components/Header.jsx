@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react'
 import { Menu, Upload, Database, X } from 'lucide-react'
 
-function Header({ dataset, setDataset, toggleSidebar }) {
+function Header({ dataset, setDataset, toggleSidebar, isMobile }) {
     const [ uploading, setUploading ] = useState(false)
     const fileInputRef = useRef(null)
 
@@ -39,55 +39,66 @@ function Header({ dataset, setDataset, toggleSidebar }) {
     }
 
     return (
-        <header className="bg-white shadow-sm border-b border-gray-200 px-6 py-4">
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                    <button
-                        onClick={toggleSidebar}
-                        className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-                    >
-                        <Menu size={20} />
-                    </button>
-                    <h2 className="text-xl font-semibold text-gray-800">
-                        AI Data Science Research Assistant
-                    </h2>
-                </div>
-
-                <div className="flex items-center gap-4">
-                    {dataset ? (
-                        <div className="flex items-center gap-3 bg-green-50 px-4 py-2 rounded-lg border border-green-200">
-                            <Database size={18} className="text-green-600" />
-                            <div>
-                                <p className="text-sm font-medium text-green-800">{dataset.name}</p>
-                                <p className="text-xs text-green-600">{dataset.rowCount} rows x {dataset.colCount} cols</p>
-                            </div>
-                            <button
-                                onClick={() => setDataset(null)}
-                                className="p-1 hover:bg-green-100 rounded"
-                            >
-                                <X size={16} className="text-green-600" />
-                            </button>
+        <header className="sticky top-0 z-30 px-4 pb-4 pt-4 md:px-6">
+            <div className="surface-panel rounded-2xl px-4 py-3 md:px-6 md:py-4">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div className="flex min-w-[260px] items-center gap-3 md:gap-4">
+                        <button
+                            onClick={toggleSidebar}
+                            className="rounded-xl border border-slate-200 p-2 text-slate-700 transition-colors hover:bg-slate-100"
+                            aria-label="Toggle sidebar"
+                        >
+                            <Menu size={20} />
+                        </button>
+                        <div>
+                            <h2 className="title-display text-lg font-semibold text-slate-900 md:text-xl">
+                                AI Data Science Research Assistant
+                            </h2>
+                            <p className="text-xs text-slate-500 md:text-sm">
+                                {isMobile ? 'Mobile workspace mode' : 'Collaborative analytics workspace'}
+                            </p>
                         </div>
-                    ) : (
-                        <div className="text-sm text-gray-500">No dataset loaded</div>
-                    )}
+                    </div>
 
-                    <input
-                        type="file"
-                        ref={fileInputRef}
-                        onChange={handleFileUpload}
-                        accept=".csv"
-                        className="hidden"
-                    />
+                    <div className="flex flex-wrap items-center justify-end gap-3">
+                        {dataset ? (
+                            <div className="flex max-w-full items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/90 px-3 py-2 md:px-4">
+                                <Database size={18} className="text-emerald-700" />
+                                <div className="max-w-[200px] md:max-w-[260px]">
+                                    <p className="truncate text-sm font-semibold text-emerald-800">{dataset.name}</p>
+                                    <p className="text-xs text-emerald-700">{dataset.rowCount} rows x {dataset.colCount} cols</p>
+                                </div>
+                                <button
+                                    onClick={() => setDataset(null)}
+                                    className="rounded p-1 transition-colors hover:bg-emerald-100"
+                                    aria-label="Remove dataset"
+                                >
+                                    <X size={16} className="text-emerald-700" />
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="rounded-xl border border-slate-200 bg-white/70 px-3 py-2 text-sm text-slate-500">
+                                No dataset loaded
+                            </div>
+                        )}
 
-                    <button
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={uploading}
-                        className="btn-primary flex items-center gap-2"
-                    >
-                        <Upload size={18} />
-                        {uploading ? 'Uploading...' : 'Upload CSV'}
-                    </button>
+                        <input
+                            type="file"
+                            ref={fileInputRef}
+                            onChange={handleFileUpload}
+                            accept=".csv"
+                            className="hidden"
+                        />
+
+                        <button
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={uploading}
+                            className="btn-primary flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-70"
+                        >
+                            <Upload size={18} />
+                            {uploading ? 'Uploading...' : 'Upload CSV'}
+                        </button>
+                    </div>
                 </div>
             </div>
         </header>

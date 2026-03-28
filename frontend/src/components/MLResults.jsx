@@ -2,6 +2,8 @@ import React, { useState } from 'react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { CheckCircle, ChevronDown, Trophy, Zap, Clock } from 'lucide-react'
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || ''
+
 const CATEGORY_COLORS = {
     'Boosting': 'bg-purple-100 text-purple-700',
     'Ensemble': 'bg-blue-100 text-blue-700',
@@ -23,6 +25,8 @@ const CATEGORY_COLORS = {
 function MLResults({ results }) {
     const [ expandedModel, setExpandedModel ] = useState(null)
     const [ viewMode, setViewMode ] = useState('all') // 'all' or category name
+    const [ downloadFormat, setDownloadFormat ] = useState('pkl')
+    const [ downloadingModel, setDownloadingModel ] = useState(false)
 
     if (!results || !results.models) {
         return (
@@ -32,7 +36,9 @@ function MLResults({ results }) {
         )
     }
 
-    const isClassification = results.taskType === 'classification'
+    const taskTypeText = String(results.taskType || results.task_type || '').toLowerCase()
+    const isClassification = taskTypeText.includes('classification')
+    const isRegression = taskTypeText.includes('regression')
     const primaryMetric = isClassification ? 'accuracy' : 'r2'
 
     const bestModel = results.models.reduce((best, current) =>
@@ -48,8 +54,135 @@ function MLResults({ results }) {
         ? results.models
         : results.models.filter(m => m.category === viewMode)
 
+    const metrics = results.metrics || {}
+    const confusion = results.confusion_matrix || {}
+    const hasConfusionMatrix = Array.isArray(confusion.matrix) && confusion.matrix.length > 0
+
+    const downloadTrainedModel = async () => {
+        if (!results?.model_id) return
+
+        setDownloadingModel(true)
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/ml/models/${results.model_id}/download?format=${encodeURIComponent(downloadFormat)}`)
+            if (!response.ok) {
+                const errorPayload = await response.json().catch(() => ({}))
+                throw new Error(errorPayload?.detail || 'Failed to download model')
+            }
+
+            const blob = await response.blob()
+            const contentDisposition = response.headers.get('content-disposition') || ''
+            const match = contentDisposition.match(/filename="?([^\"]+)"?/i)
+            const fallbackName = `trained-model-${results.model_id}.${downloadFormat === 'pickle' ? 'pkl' : downloadFormat}`
+            const filename = match?.[ 1 ] || fallbackName
+
+            const url = window.URL.createObjectURL(blob)
+            const link = document.createElement('a')
+            link.href = url
+            link.download = filename
+            document.body.appendChild(link)
+            link.click()
+            link.remove()
+            window.URL.revokeObjectURL(url)
+        } catch (err) {
+            const message = err?.message || 'Download failed'
+            window.alert(message)
+        } finally {
+            setDownloadingModel(false)
+        }
+    }
+
     return (
         <div className="space-y-6">
+            {/* Selected model summary for dynamic AutoML flow */}
+            {(results.selectedModel || results.model_name || results.selectedX || results.selectedY) && (
+                <div className="bg-white border border-gray-200 rounded-lg p-5 space-y-3">
+                    <h3 className="text-lg font-semibold text-gray-900">Selected Model Training Summary</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                        <div><span className="font-semibold">Model:</span> {results.selectedModel || results.model_name || 'N/A'}</div>
+                        <div><span className="font-semibold">Task:</span> {results.taskType || results.task_type || 'N/A'}</div>
+                        <div><span className="font-semibold">X Features:</span> {(results.selectedX || results.x_columns || []).join(', ') || 'N/A'}</div>
+                        <div><span className="font-semibold">Y Targets:</span> {(results.selectedY || results.y_columns || []).join(', ') || 'N/A'}</div>
+                        <div><span className="font-semibold">Total Rows Used:</span> {results.total_rows ?? 'N/A'}</div>
+                        <div><span className="font-semibold">Train/Test Split:</span> {results.train_rows != null && results.test_rows != null ? `${results.train_rows} / ${results.test_rows}` : 'N/A'}</div>
+                        <div><span className="font-semibold">Feature Count (encoded):</span> {results.feature_count ?? 'N/A'}</div>
+                        <div><span className="font-semibold">Training Time:</span> {results.trainingTime != null ? `${Number(results.trainingTime).toFixed(3)}s` : (results.training_time != null ? `${Number(results.training_time).toFixed(3)}s` : 'N/A')}</div>
+                    </div>
+
+                    {(isClassification || isRegression) && (
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2">
+                            {isClassification && (
+                                <>
+                                    <MetricCard label="Accuracy" value={metrics.accuracy != null ? `${(metrics.accuracy * 100).toFixed(2)}%` : 'N/A'} />
+                                    <MetricCard label="Precision" value={metrics.precision != null ? `${(metrics.precision * 100).toFixed(2)}%` : 'N/A'} />
+                                    <MetricCard label="Recall" value={metrics.recall != null ? `${(metrics.recall * 100).toFixed(2)}%` : 'N/A'} />
+                                    <MetricCard label="F1 Score" value={metrics.f1 != null ? `${(metrics.f1 * 100).toFixed(2)}%` : 'N/A'} />
+                                </>
+                            )}
+                            {isRegression && (
+                                <>
+                                    <MetricCard label="R² Score" value={metrics.r2 != null ? Number(metrics.r2).toFixed(4) : 'N/A'} />
+                                    <MetricCard label="MAE" value={metrics.mae != null ? Number(metrics.mae).toFixed(4) : 'N/A'} />
+                                    <MetricCard label="MSE" value={metrics.mse != null ? Number(metrics.mse).toFixed(4) : 'N/A'} />
+                                    <MetricCard label="RMSE" value={metrics.rmse != null ? Number(metrics.rmse).toFixed(4) : 'N/A'} />
+                                </>
+                            )}
+                        </div>
+                    )}
+
+                    {hasConfusionMatrix && (
+                        <div className="pt-2">
+                            <p className="text-sm font-semibold text-gray-900 mb-2">Confusion Matrix</p>
+                            <div className="overflow-x-auto">
+                                <table className="min-w-[420px] w-full border border-gray-200 text-sm">
+                                    <thead>
+                                        <tr>
+                                            <th className="p-2 border bg-gray-50">Actual \ Predicted</th>
+                                            {(confusion.labels || []).map((label, i) => (
+                                                <th key={`cm-h-${i}`} className="p-2 border bg-gray-50">{label}</th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {confusion.matrix.map((row, rIdx) => (
+                                            <tr key={`cm-r-${rIdx}`}>
+                                                <td className="p-2 border font-medium bg-gray-50">{(confusion.labels || [])[ rIdx ] ?? rIdx}</td>
+                                                {row.map((v, cIdx) => (
+                                                    <td key={`cm-c-${rIdx}-${cIdx}`} className="p-2 border text-center">{v}</td>
+                                                ))}
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {results.model_id && (
+                <div className="bg-white border border-gray-200 rounded-lg p-4 flex flex-col md:flex-row md:items-center gap-2">
+                    <label className="text-sm text-gray-700 font-semibold">Download Trained Model:</label>
+                    <select
+                        value={downloadFormat}
+                        onChange={(e) => setDownloadFormat(e.target.value)}
+                        className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
+                    >
+                        <option value="pkl">Pickle (.pkl)</option>
+                        <option value="joblib">Joblib (.joblib)</option>
+                        <option value="json">Metadata (.json)</option>
+                    </select>
+                    <button
+                        type="button"
+                        onClick={downloadTrainedModel}
+                        disabled={downloadingModel}
+                        className="px-4 py-2 rounded-lg bg-gray-900 text-white text-sm font-medium hover:bg-gray-800 disabled:opacity-60"
+                    >
+                        {downloadingModel ? 'Downloading...' : 'Download Model'}
+                    </button>
+                    <span className="text-xs text-gray-500">Model ID: {results.model_id}</span>
+                </div>
+            )}
+
             {/* Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-5 border border-blue-200">
@@ -66,8 +199,8 @@ function MLResults({ results }) {
                     </div>
                     <p className="text-3xl font-bold text-green-900">
                         {isClassification
-                            ? `${(bestModel.accuracy * 100).toFixed(1)}%`
-                            : bestModel.r2?.toFixed(4)
+                            ? `${((bestModel.accuracy || metrics.accuracy || 0) * 100).toFixed(1)}%`
+                            : Number(bestModel.r2 ?? metrics.r2 ?? 0).toFixed(4)
                         }
                     </p>
                 </div>

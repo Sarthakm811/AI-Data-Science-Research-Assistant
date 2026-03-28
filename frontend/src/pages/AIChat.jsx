@@ -70,27 +70,27 @@ function AIChat({ dataset }) {
     }, [ input, dataset, sessionId ])
 
     return (
-        <div className="h-[calc(100vh-200px)] flex flex-col">
+        <div className="fade-up flex h-[calc(100vh-200px)] flex-col">
             {/* Header */}
-            <div className="card mb-4">
+            <div className="card lift-hover mb-4 bg-gradient-to-r from-blue-800 via-teal-700 to-orange-600 text-white">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <div className="bg-purple-100 p-3 rounded-lg">
-                            <Sparkles size={24} className="text-purple-600" />
+                        <div className="rounded-lg bg-white/20 p-3">
+                            <Sparkles size={24} className="text-white" />
                         </div>
                         <div>
-                            <h1 className="text-xl font-bold text-gray-800">AI Chat</h1>
-                            <p className="text-gray-500 text-sm">Ask questions about your data</p>
+                            <h1 className="title-display text-xl font-bold">AI Chat</h1>
+                            <p className="text-sm text-cyan-100">Ask questions about your data</p>
                         </div>
                     </div>
 
                     <div className="flex items-center gap-4">
-                        <div className="bg-green-50 px-3 py-2 rounded-lg border border-green-200">
+                        <div className="rounded-lg border border-white/30 bg-white/15 px-3 py-2">
                             <p className="text-sm text-green-700">AI Ready</p>
                         </div>
                         {dataset && (
-                            <div className="bg-blue-50 px-3 py-2 rounded-lg border border-blue-200">
-                                <p className="text-sm text-blue-700">{dataset.name}</p>
+                            <div className="rounded-lg border border-white/30 bg-white/15 px-3 py-2">
+                                <p className="text-sm text-cyan-50">{dataset.name}</p>
                             </div>
                         )}
                     </div>
@@ -98,21 +98,21 @@ function AIChat({ dataset }) {
             </div>
 
             {/* Messages */}
-            <div className="flex-1 card overflow-y-auto mb-4">
+            <div className="card mb-4 flex-1 overflow-y-auto">
                 <div className="space-y-4">
                     {messages.map((msg, i) => (
-                        <div key={i} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${msg.role === 'user' ? 'bg-purple-600' : 'bg-gray-200'
+                        <div key={i} style={{ animationDelay: `${Math.min(i * 40, 240)}ms` }} className={`fade-up flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                            <div className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full ${msg.role === 'user' ? 'bg-gradient-to-r from-teal-600 to-blue-700' : 'bg-slate-200'
                                 }`}>
                                 {msg.role === 'user' ? (
                                     <User size={20} className="text-white" />
                                 ) : (
-                                    <Bot size={20} className="text-gray-600" />
+                                    <Bot size={20} className="text-slate-700" />
                                 )}
                             </div>
-                            <div className={`max-w-[70%] rounded-lg p-4 ${msg.role === 'user'
-                                ? 'bg-purple-600 text-white'
-                                : 'bg-gray-100 text-gray-800'
+                            <div className={`max-w-[70%] rounded-xl p-4 ${msg.role === 'user'
+                                ? 'bg-gradient-to-r from-teal-600 to-blue-700 text-white'
+                                : 'bg-slate-100 text-slate-800'
                                 }`}>
                                 <p className="whitespace-pre-wrap">{msg.content}</p>
                             </div>
@@ -121,15 +121,16 @@ function AIChat({ dataset }) {
 
                     {loading && (
                         <div className="flex gap-3">
-                            <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
-                                <Bot size={20} className="text-gray-600" />
+                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-200">
+                                <Bot size={20} className="text-slate-700" />
                             </div>
-                            <div className="bg-gray-100 rounded-lg p-4">
-                                <div className="flex gap-1">
-                                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
-                                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
-                                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
+                            <div className="rounded-lg bg-slate-100 p-4">
+                                <div className="mb-2 flex gap-1">
+                                    <div className="h-2 w-2 animate-bounce rounded-full bg-gray-400" />
+                                    <div className="h-2 w-2 animate-bounce rounded-full bg-gray-400" style={{ animationDelay: '0.1s' }} />
+                                    <div className="h-2 w-2 animate-bounce rounded-full bg-gray-400" style={{ animationDelay: '0.2s' }} />
                                 </div>
+                                <div className="skeleton h-3 w-48" />
                             </div>
                         </div>
                     )}
@@ -153,7 +154,7 @@ function AIChat({ dataset }) {
                     <button
                         onClick={sendMessage}
                         disabled={loading || !input.trim()}
-                        className="btn-primary flex items-center gap-2"
+                        className="btn-primary flex items-center gap-2 disabled:opacity-70"
                     >
                         <Send size={18} />
                         Send

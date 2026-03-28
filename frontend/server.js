@@ -8,8 +8,8 @@ const path = require('path');
 const app = express();
 const PORT = 8000;
 
-// API Key for AI features
-const API_KEY = "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";
+// API key must be provided via environment variable.
+const API_KEY = process.env.OPENROUTER_API_KEY || '';
 
 // Middleware
 app.use(cors());
@@ -242,6 +242,10 @@ app.get('/api/ml/results/:datasetId', (req, res) => {
 
 app.post('/api/chat', async (req, res) => {
     const { message, datasetId } = req.body;
+
+    if (!API_KEY) {
+        return res.status(503).json({ error: 'AI service not configured (missing OPENROUTER_API_KEY)' });
+    }
 
     let context = '';
     if (datasetId && datasets[ datasetId ]) {

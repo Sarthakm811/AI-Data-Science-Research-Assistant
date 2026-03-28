@@ -33,6 +33,8 @@ class DataPreprocessor:
         self.encoders = {}
         self.imputers = {}
         self.feature_selector = None
+        self.global_scaler = None
+        self.scale_columns = []
         self.original_columns = []
         self.numeric_columns = []
         self.categorical_columns = []
@@ -139,11 +141,15 @@ class DataPreprocessor:
                         columns=encoder.get_feature_names_out([col])
                     )
                     result_df = pd.concat([result_df.drop(columns=[col]), encoded_df], axis=1)
+                elif isinstance(encoder, dict):
+                    # frequency/target encoding map
+                    result_df[col] = result_df[col].map(encoder).fillna(0)
         
-        # Apply scalers
-        for col, scaler in self.scalers.items():
-            if col in result_df.columns:
-                result_df[col] = scaler.transform(result_df[[col]])
+        # Apply fitted global scaler in one pass to preserve feature ordering
+        if self.global_scaler is not None and self.scale_columns:
+            cols = [c for c in self.scale_columns if c in result_df.columns]
+            if cols:
+                result_df[cols] = self.global_scaler.transform(result_df[cols])
         
         return result_df
     
@@ -321,9 +327,9 @@ class DataPreprocessor:
             return result_df, scaling_info
         
         result_df[cols_to_scale] = scaler.fit_transform(result_df[cols_to_scale])
-        
-        for col in cols_to_scale:
-            self.scalers[col] = scaler
+        self.global_scaler = scaler
+        self.scale_columns = cols_to_scale
+        self.scalers = {col: scaler for col in cols_to_scale}
         
         scaling_info = {
             "method": method,

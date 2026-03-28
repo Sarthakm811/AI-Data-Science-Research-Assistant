@@ -20,7 +20,7 @@ spec:
         ports:
         - containerPort: 3000
         env:
-        - name: NEXT_PUBLIC_API_URL
+        - name: VITE_API_URL
           value: "https://api.ds-agent.example.com"
         resources:
           requests:

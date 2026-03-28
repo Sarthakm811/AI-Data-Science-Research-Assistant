@@ -36,11 +36,15 @@ class EDATool:
             "outliers": self._detect_outliers(df),
             "categorical_analysis": self._analyze_categorical(df, job_id),
             "visualizations": [],
+            "distribution_visualizations": [],
+            "correlation_visualizations": [],
         }
 
         # Generate visualizations
-        viz_paths = self._generate_visualizations(df, job_id)
-        results["visualizations"] = viz_paths
+        viz_payload = self._generate_visualizations(df, job_id, results["correlations"])
+        results["visualizations"] = viz_payload["all"]
+        results["distribution_visualizations"] = viz_payload["distribution"]
+        results["correlation_visualizations"] = viz_payload["correlation"]
 
         return results
 
@@ -165,9 +169,13 @@ class EDATool:
 
         return analysis
 
-    def _generate_visualizations(self, df: pd.DataFrame, job_id: str) -> List[str]:
-        """Generate comprehensive visualizations"""
-        viz_paths = []
+    def _generate_visualizations(
+        self, df: pd.DataFrame, job_id: str, correlation_results: Dict[str, Any]
+    ) -> Dict[str, List[str]]:
+        """Generate comprehensive visualizations and return grouped asset lists."""
+        viz_paths: List[str] = []
+        distribution_paths: List[str] = []
+        correlation_paths: List[str] = []
 
         # 1. Correlation heatmap
         numeric_df = df.select_dtypes(include=[np.number])
@@ -180,7 +188,40 @@ class EDATool:
             path = self.output_dir / f"{job_id}_correlation_heatmap.png"
             plt.savefig(path, dpi=300, bbox_inches="tight")
             plt.close()
-            viz_paths.append(str(path))
+            saved_path = str(path)
+            viz_paths.append(saved_path)
+            correlation_paths.append(saved_path)
+
+            # Pairwise scatter plots for strongly correlated feature pairs.
+            for pair in correlation_results.get("high_correlations", []):
+                f1 = pair.get("feature1")
+                f2 = pair.get("feature2")
+                if f1 not in numeric_df.columns or f2 not in numeric_df.columns:
+                    continue
+
+                sample = df[[f1, f2]].dropna()
+                if sample.empty:
+                    continue
+
+                plt.figure(figsize=(8, 6))
+                sns.scatterplot(data=sample, x=f1, y=f2, alpha=0.65)
+                sns.regplot(
+                    data=sample,
+                    x=f1,
+                    y=f2,
+                    scatter=False,
+                    color="red",
+                    line_kws={"linewidth": 2},
+                )
+                plt.title(
+                    f"Correlation Scatter: {f1} vs {f2} (r={pair.get('correlation', 0):.2f})"
+                )
+                scatter_path = self.output_dir / f"{job_id}_corr_{f1}_vs_{f2}.png"
+                plt.savefig(scatter_path, dpi=300, bbox_inches="tight")
+                plt.close()
+                saved_path = str(scatter_path)
+                viz_paths.append(saved_path)
+                correlation_paths.append(saved_path)
 
         # 2. Distribution plots for numeric features
         if not numeric_df.empty:
@@ -204,7 +245,30 @@ class EDATool:
             path = self.output_dir / f"{job_id}_distributions.png"
             plt.savefig(path, dpi=300, bbox_inches="tight")
             plt.close()
-            viz_paths.append(str(path))
+            saved_path = str(path)
+            viz_paths.append(saved_path)
+            distribution_paths.append(saved_path)
+
+            # Per-column distribution charts to ensure complete coverage in reports.
+            for col in numeric_df.columns:
+                plt.figure(figsize=(10, 4))
+                plt.subplot(1, 2, 1)
+                sns.histplot(numeric_df[col].dropna(), bins=30, kde=True)
+                plt.title(f"Distribution: {col}")
+                plt.xlabel(col)
+
+                plt.subplot(1, 2, 2)
+                sns.boxplot(x=numeric_df[col].dropna())
+                plt.title(f"Box Plot: {col}")
+                plt.xlabel(col)
+
+                plt.tight_layout()
+                col_path = self.output_dir / f"{job_id}_distribution_{col}.png"
+                plt.savefig(col_path, dpi=300, bbox_inches="tight")
+                plt.close()
+                saved_path = str(col_path)
+                viz_paths.append(saved_path)
+                distribution_paths.append(saved_path)
 
         # 3. Box plots for outlier detection
         if not numeric_df.empty and len(numeric_df.columns) <= 10:
@@ -239,11 +303,17 @@ class EDATool:
                 path = self.output_dir / f"{job_id}_pairplot.png"
                 pairplot.savefig(path, dpi=300, bbox_inches="tight")
                 plt.close()
-                viz_paths.append(str(path))
+                saved_path = str(path)
+                viz_paths.append(saved_path)
+                distribution_paths.append(saved_path)
             except Exception as e:
                 print(f"Pairplot generation failed: {e}")
 
-        return viz_paths
+        return {
+            "all": viz_paths,
+            "distribution": distribution_paths,
+            "correlation": correlation_paths,
+        }
 
     def generate_eda_summary(self, results: Dict[str, Any]) -> str:
         """Generate human-readable EDA summary"""

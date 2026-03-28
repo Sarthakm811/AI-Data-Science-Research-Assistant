@@ -1,6 +1,8 @@
 import React, { useState, useCallback } from 'react'
 import { Search, Download, Upload, Loader, AlertCircle, CheckCircle, Key, Settings, Eye, EyeOff } from 'lucide-react'
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || ''
+
 function DatasetSearch({ setDataset }) {
     const [ searchQuery, setSearchQuery ] = useState('')
     const [ results, setResults ] = useState([])
@@ -49,7 +51,7 @@ function DatasetSearch({ setDataset }) {
         setResults([])
 
         try {
-            const response = await fetch('http://localhost:8000/api/kaggle/search', {
+            const response = await fetch(`${API_BASE_URL}/api/kaggle/search`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -82,7 +84,7 @@ function DatasetSearch({ setDataset }) {
         setError(null)
 
         try {
-            const response = await fetch('http://localhost:8000/api/kaggle/download', {
+            const response = await fetch(`${API_BASE_URL}/api/kaggle/download`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -135,7 +137,7 @@ function DatasetSearch({ setDataset }) {
             const formData = new FormData()
             formData.append('file', selectedFile)
 
-            const response = await fetch('http://localhost:8000/api/dataset/upload', {
+            const response = await fetch(`${API_BASE_URL}/api/dataset/upload`, {
                 method: 'POST',
                 body: formData
             })
@@ -155,17 +157,17 @@ function DatasetSearch({ setDataset }) {
     }
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 fade-up">
             {/* Header */}
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="card lift-hover bg-gradient-to-r from-blue-800 via-teal-700 to-orange-600 text-white">
                 <div className="flex items-center justify-between">
                     <div>
-                        <h1 className="text-3xl font-bold text-gray-900 mb-2">Dataset Search & Upload</h1>
-                        <p className="text-gray-600">Search Kaggle datasets or upload your own CSV/XLSX files</p>
+                        <h1 className="title-display mb-2 text-3xl font-bold">Dataset Search & Upload</h1>
+                        <p className="text-cyan-100">Search Kaggle datasets or upload your own CSV/XLSX files</p>
                     </div>
                     <button
                         onClick={() => setShowSettings(!showSettings)}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg transition ${showSettings ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        className={`flex items-center gap-2 rounded-xl px-4 py-2 transition ${showSettings ? 'bg-white text-blue-700' : 'bg-white/20 text-white hover:bg-white/30'
                             }`}
                     >
                         <Settings size={18} />
@@ -176,7 +178,7 @@ function DatasetSearch({ setDataset }) {
 
             {/* Kaggle API Settings */}
             {showSettings && (
-                <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg shadow p-6 border border-purple-200">
+                <div className="card fade-up border border-blue-200/70 bg-gradient-to-r from-blue-50 to-teal-50">
                     <div className="flex items-center gap-3 mb-4">
                         <div className="bg-purple-100 p-2 rounded-lg">
                             <Key size={24} className="text-purple-600" />
@@ -197,7 +199,7 @@ function DatasetSearch({ setDataset }) {
                                 value={kaggleUsername}
                                 onChange={(e) => setKaggleUsername(e.target.value)}
                                 placeholder="your_kaggle_username"
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                className="input-field"
                             />
                         </div>
                         <div>
@@ -210,7 +212,7 @@ function DatasetSearch({ setDataset }) {
                                     value={kaggleKey}
                                     onChange={(e) => setKaggleKey(e.target.value)}
                                     placeholder="your_api_key"
-                                    className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                    className="input-field pr-10"
                                 />
                                 <button
                                     type="button"
@@ -227,7 +229,7 @@ function DatasetSearch({ setDataset }) {
                         <div className="flex gap-3">
                             <button
                                 onClick={saveCredentials}
-                                className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition"
+                                className="btn-primary flex items-center gap-2"
                             >
                                 <CheckCircle size={16} />
                                 Save Credentials
@@ -282,13 +284,13 @@ function DatasetSearch({ setDataset }) {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Search Section */}
-                <div className="bg-white rounded-lg shadow p-6">
+                <div className="card lift-hover">
                     <h2 className="text-xl font-semibold text-gray-900 mb-4">Search Kaggle Datasets</h2>
 
                     {/* Credentials Status */}
                     <div className={`mb-4 p-3 rounded-lg flex items-center gap-2 text-sm ${kaggleUsername && kaggleKey
-                            ? 'bg-green-50 text-green-700 border border-green-200'
-                            : 'bg-yellow-50 text-yellow-700 border border-yellow-200'
+                        ? 'bg-green-50 text-green-700 border border-green-200'
+                        : 'bg-yellow-50 text-yellow-700 border border-yellow-200'
                         }`}>
                         {kaggleUsername && kaggleKey ? (
                             <>
@@ -313,7 +315,7 @@ function DatasetSearch({ setDataset }) {
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 placeholder="e.g., titanic, housing, customer-churn, mnist"
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                className="input-field"
                             />
                         </div>
 
@@ -336,15 +338,27 @@ function DatasetSearch({ setDataset }) {
                         </button>
                     </form>
 
+                    {loading && (
+                        <div className="mt-6 space-y-3">
+                            {[ 1, 2, 3 ].map((idx) => (
+                                <div key={idx} className="rounded-xl border border-slate-200 p-4">
+                                    <div className="skeleton mb-3 h-4 w-3/4" />
+                                    <div className="skeleton mb-2 h-3 w-full" />
+                                    <div className="skeleton h-3 w-2/3" />
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
                     {/* Search Results */}
                     {results.length > 0 && (
-                        <div className="mt-6 space-y-3">
+                        <div className="mt-6 space-y-3 stagger">
                             <h3 className="font-semibold text-gray-900">Found {results.length} datasets</h3>
                             <div className="max-h-96 overflow-y-auto space-y-3">
                                 {results.map((dataset, idx) => (
                                     <div
                                         key={dataset.id || idx}
-                                        className="border border-gray-200 rounded-lg p-4 hover:border-blue-400 transition"
+                                        className="lift-hover rounded-lg border border-gray-200 p-4 transition hover:border-blue-400"
                                     >
                                         <div className="flex items-start justify-between gap-4">
                                             <div className="flex-1 min-w-0">
@@ -397,7 +411,7 @@ function DatasetSearch({ setDataset }) {
                 </div>
 
                 {/* Upload Section */}
-                <div className="bg-white rounded-lg shadow p-6">
+                <div className="card lift-hover">
                     <h2 className="text-xl font-semibold text-gray-900 mb-4">Upload Local Dataset</h2>
                     <div className="space-y-4">
                         <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition">

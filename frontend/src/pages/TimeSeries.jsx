@@ -3,6 +3,17 @@ import { TrendingUp, Play, Calendar, Activity, Layers } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, ComposedChart, Bar } from 'recharts'
 import { useAnalysis } from '../context/AnalysisContext'
 
+const TS_STAT_CLASS = {
+    blue: 'text-blue-600',
+    purple: 'text-purple-600',
+    green: 'text-green-600',
+    red: 'text-red-600',
+    gray: 'text-gray-600',
+    indigo: 'text-indigo-600',
+    pink: 'text-pink-600',
+    cyan: 'text-cyan-600'
+}
+
 function TimeSeries({ dataset }) {
     const [ analyzing, setAnalyzing ] = useState(false)
     const [ results, setResults ] = useState(null)
@@ -168,16 +179,16 @@ function TimeSeries({ dataset }) {
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div className="card bg-gradient-to-r from-cyan-600 to-blue-600 text-white">
+            <div className="card bg-gradient-to-r from-blue-800 via-teal-700 to-orange-600 text-white">
                 <div className="flex items-center justify-between">
                     <div>
-                        <h1 className="text-2xl font-bold mb-1">Time Series Analysis</h1>
+                        <h1 className="title-display mb-1 text-2xl font-bold">Time Series Analysis</h1>
                         <p className="text-cyan-100">Analyze trends, seasonality, and forecast future values</p>
                     </div>
                     <button
                         onClick={runAnalysis}
                         disabled={analyzing || !config.dateColumn || !config.valueColumn}
-                        className="bg-white text-cyan-600 px-6 py-3 rounded-lg font-semibold hover:bg-cyan-50 transition flex items-center gap-2 disabled:opacity-50"
+                        className="flex items-center gap-2 rounded-lg bg-white px-6 py-3 font-semibold text-blue-700 transition hover:bg-blue-50 disabled:opacity-50"
                     >
                         <Play size={18} />
                         {analyzing ? 'Analyzing...' : 'Run Analysis'}
@@ -233,6 +244,23 @@ function TimeSeries({ dataset }) {
                 </div>
             </div>
 
+            {analyzing && !results && (
+                <div className="space-y-6 fade-up">
+                    <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-8">
+                        {[ 1, 2, 3, 4, 5, 6, 7, 8 ].map((idx) => (
+                            <div key={idx} className="card p-4 text-center">
+                                <div className="skeleton mx-auto mb-2 h-6 w-16" />
+                                <div className="skeleton mx-auto h-3 w-20" />
+                            </div>
+                        ))}
+                    </div>
+                    <div className="card">
+                        <div className="skeleton mb-4 h-5 w-44" />
+                        <div className="skeleton h-72 w-full" />
+                    </div>
+                </div>
+            )}
+
             {results && (
                 <>
                     {/* Statistics */}
@@ -247,23 +275,23 @@ function TimeSeries({ dataset }) {
                             { label: 'Seasonality', value: results.statistics.seasonalityStrength, color: 'pink' },
                             { label: 'Data Points', value: results.statistics.dataPoints, color: 'cyan' }
                         ].map((stat, i) => (
-                            <div key={i} className="card text-center p-4">
-                                <p className={`text-xl font-bold text-${stat.color}-600`}>{stat.value}</p>
+                            <div key={i} className="card p-4 text-center">
+                                <p className={`text-xl font-bold ${TS_STAT_CLASS[ stat.color ] || 'text-slate-700'}`}>{stat.value}</p>
                                 <p className="text-gray-500 text-xs">{stat.label}</p>
                             </div>
                         ))}
                     </div>
 
                     {/* Tabs */}
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 overflow-x-auto pb-1">
                         {tabs.map(tab => {
                             const Icon = tab.icon
                             return (
                                 <button
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id)}
-                                    className={`flex items-center gap-2 px-4 py-2 rounded-lg transition ${activeTab === tab.id
-                                        ? 'bg-cyan-600 text-white'
+                                    className={`whitespace-nowrap flex items-center gap-2 px-4 py-2 rounded-lg transition ${activeTab === tab.id
+                                        ? 'bg-gradient-to-r from-teal-600 to-blue-700 text-white'
                                         : 'bg-white text-gray-600 hover:bg-cyan-50'
                                         }`}
                                 >

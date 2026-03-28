@@ -2,10 +2,8 @@
 builder = "nixpacks"
 
 [deploy]
-startCommand = "streamlit run streamlit_enhanced.py --server.port=$PORT --server.address=0.0.0.0 --server.headless=true --client.toolbarMode=minimal"
+startCommand = "uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT"
 
 [env]
-STREAMLIT_SERVER_HEADLESS = "true"
-STREAMLIT_SERVER_PORT = "8000"
-STREAMLIT_CLIENT_TOOLBAR_MODE = "minimal"
+PORT = "8000"
 

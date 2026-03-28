@@ -32,7 +32,7 @@ jobs:
         run: |
           cd backend
           # disable the langsmith pytest plugin in CI to prevent external initialization
-          pytest -p no:langsmith_plugin tests/ -v || echo "Tests failed but continuing"
+          pytest -p no:langsmith_plugin tests/ -v
       
       - name: Upload coverage (if available)
         if: always()

@@ -5,6 +5,24 @@ import { useAnalysis } from '../context/AnalysisContext'
 
 const COLORS = [ '#8b5cf6', '#ec4899', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#06b6d4', '#84cc16', '#f97316', '#6366f1' ]
 
+const METRIC_TEXT_CLASS = {
+    purple: 'text-purple-600',
+    blue: 'text-blue-600',
+    green: 'text-green-600',
+    pink: 'text-pink-600',
+    orange: 'text-orange-600',
+    red: 'text-red-600',
+    yellow: 'text-yellow-600',
+    gray: 'text-gray-600'
+}
+
+const METRIC_BAR_CLASS = {
+    green: 'bg-green-500',
+    blue: 'bg-blue-500',
+    purple: 'bg-purple-500',
+    pink: 'bg-pink-500'
+}
+
 function AutoEDA({ dataset }) {
     const [ analyzing, setAnalyzing ] = useState(false)
     const [ results, setResults ] = useState(null)
@@ -183,20 +201,20 @@ function AutoEDA({ dataset }) {
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div className="card bg-gradient-to-r from-purple-600 via-pink-600 to-purple-600 text-white">
+            <div className="card bg-gradient-to-r from-blue-800 via-teal-700 to-orange-600 text-white">
                 <div className="flex items-center justify-between">
                     <div>
-                        <h1 className="text-2xl font-bold mb-1">Interactive EDA Dashboard</h1>
-                        <p className="text-purple-100">Comprehensive data analysis with AI-powered insights</p>
+                        <h1 className="title-display mb-1 text-2xl font-bold">Interactive EDA Dashboard</h1>
+                        <p className="text-cyan-100">Comprehensive data analysis with AI-powered insights</p>
                     </div>
                     <div className="flex items-center gap-3">
                         {results && (
-                            <div className="bg-white/20 px-4 py-2 rounded-lg">
-                                <p className="text-xs text-purple-100">Quality Score</p>
+                            <div className="rounded-lg bg-white/20 px-4 py-2">
+                                <p className="text-xs text-cyan-100">Quality Score</p>
                                 <p className="text-2xl font-bold">{results.qualityScore}/100</p>
                             </div>
                         )}
-                        <button onClick={runAnalysis} disabled={analyzing} className="bg-white text-purple-600 px-6 py-3 rounded-lg font-semibold hover:bg-purple-50 transition flex items-center gap-2">
+                        <button onClick={runAnalysis} disabled={analyzing} className="flex items-center gap-2 rounded-lg bg-white px-6 py-3 font-semibold text-blue-700 transition hover:bg-blue-50">
                             {analyzing ? <RefreshCw size={18} className="animate-spin" /> : <Zap size={18} />}
                             {analyzing ? 'Analyzing...' : 'Run Analysis'}
                         </button>
@@ -208,6 +226,30 @@ function AutoEDA({ dataset }) {
                     <span>{dataset.colCount} columns</span>
                 </div>
             </div>
+
+            {analyzing && !results && (
+                <div className="space-y-6 fade-up">
+                    <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-7">
+                        {[ 1, 2, 3, 4, 5, 6, 7 ].map((idx) => (
+                            <div key={idx} className="card p-4">
+                                <div className="skeleton mb-3 h-5 w-10" />
+                                <div className="skeleton mb-2 h-7 w-16" />
+                                <div className="skeleton h-3 w-20" />
+                            </div>
+                        ))}
+                    </div>
+                    <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                        <div className="card">
+                            <div className="skeleton mb-4 h-5 w-40" />
+                            <div className="skeleton h-56 w-full" />
+                        </div>
+                        <div className="card">
+                            <div className="skeleton mb-4 h-5 w-40" />
+                            <div className="skeleton h-56 w-full" />
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {results && (
                 <>
@@ -238,9 +280,9 @@ function AutoEDA({ dataset }) {
                                     { label: 'Duplicates', value: results.summary.duplicateRows, color: 'red', icon: '📑' },
                                     { label: 'Outliers', value: results.summary.outlierTotal, color: 'yellow', icon: '⚠️' }
                                 ].map((m, i) => (
-                                    <div key={i} className="card text-center hover:scale-105 transition-transform cursor-pointer">
+                                    <div key={i} className="card cursor-pointer text-center hover:-translate-y-0.5">
                                         <span className="text-2xl">{m.icon}</span>
-                                        <p className={`text-2xl font-bold text-${m.color}-600`}>{m.value}</p>
+                                        <p className={`text-2xl font-bold ${METRIC_TEXT_CLASS[ m.color ] || 'text-slate-700'}`}>{m.value}</p>
                                         <p className="text-gray-500 text-xs">{m.label}</p>
                                     </div>
                                 ))}
@@ -555,10 +597,10 @@ function AutoEDA({ dataset }) {
                                     <div key={i} className="card">
                                         <div className="flex items-center justify-between mb-2">
                                             <span className="text-gray-600 text-sm">{metric.label}</span>
-                                            <span className={`text-2xl font-bold text-${metric.color}-600`}>{metric.value}%</span>
+                                            <span className={`text-2xl font-bold ${METRIC_TEXT_CLASS[ metric.color ] || 'text-slate-700'}`}>{metric.value}%</span>
                                         </div>
                                         <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                                            <div className={`h-full bg-${metric.color}-500 rounded-full`} style={{ width: `${metric.value}%` }} />
+                                            <div className={`h-full rounded-full ${METRIC_BAR_CLASS[ metric.color ] || 'bg-slate-500'}`} style={{ width: `${metric.value}%` }} />
                                         </div>
                                         <p className="text-xs text-gray-500 mt-2">{metric.desc}</p>
                                     </div>

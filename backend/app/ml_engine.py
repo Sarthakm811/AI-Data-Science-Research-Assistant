@@ -336,6 +336,41 @@ class MLEngine:
         
         return X.values, np.array(y), feature_names
     
+    def _apply_sampling(self, X: np.ndarray, y: np.ndarray, task_type: str, 
+                        sample_size: int = 200) -> Tuple[np.ndarray, np.ndarray, bool]:
+        """Apply intelligent sampling for large datasets to speed up training
+        
+        Args:
+            X: Feature matrix
+            y: Target array
+            task_type: 'classification' or 'regression'
+            sample_size: Threshold - sample if dataset exceeds this size (default 200)
+        
+        Returns:
+            Tuple of (X_sampled, y_sampled, was_sampled)
+        """
+        if len(X) <= sample_size:
+            return X, y, False
+        
+        # For classification, use stratified sampling to maintain class distribution
+        if task_type == "classification":
+            from sklearn.model_selection import train_test_split
+            _, X_sampled, _, y_sampled = train_test_split(
+                X, y, 
+                train_size=sample_size,
+                stratify=y,
+                random_state=42
+            )
+            print(f"⚠️ SAMPLING: Dataset has {len(X)} rows. Using stratified sample of {sample_size} rows for faster training.")
+            return X_sampled, y_sampled, True
+        else:
+            # For regression, use random sampling
+            indices = np.random.RandomState(42).choice(len(X), size=sample_size, replace=False)
+            X_sampled = X[indices]
+            y_sampled = y[indices]
+            print(f"⚠️ SAMPLING: Dataset has {len(X)} rows. Using random sample of {sample_size} rows for faster training.")
+            return X_sampled, y_sampled, True
+    
     def train_all_models(
         self,
         df: pd.DataFrame,
@@ -345,9 +380,14 @@ class MLEngine:
         hyperparameter_tuning: bool = False,
         n_trials: int = 50,
         cv_folds: int = 5,
-        test_size: float = 0.2
+        test_size: float = 0.2,
+        sample_threshold: int = 200
     ) -> Dict[str, Any]:
-        """Train all models and return results"""
+        """Train all models and return results
+        
+        Args:
+            sample_threshold: Dataset size threshold for sampling (default 200 rows)
+        """
         
         start_time = time.time()
         
@@ -357,6 +397,9 @@ class MLEngine:
         # Detect task type
         if task_type == "auto":
             task_type = self._detect_task_type(pd.Series(y))
+        
+        # Apply sampling for large datasets
+        X, y, was_sampled = self._apply_sampling(X, y, task_type, sample_size=sample_threshold)
         
         # Split data
         if task_type == "classification":
@@ -482,7 +525,9 @@ class MLEngine:
             "training_time": round(total_time, 2),
             "gpu_used": use_gpu and self.gpu_available,
             "feature_names": feature_names,
-            "data_shape": {"train": X_train.shape, "test": X_test.shape}
+            "data_shape": {"train": X_train.shape, "test": X_test.shape},
+            "sampling_applied": was_sampled,
+            "sample_threshold": sample_threshold
         }
     
     def _get_feature_importance(self, model, feature_names: List[str]) -> List[Dict[str, Any]]:

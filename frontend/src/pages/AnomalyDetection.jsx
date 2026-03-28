@@ -108,16 +108,16 @@ function AnomalyDetection({ dataset }) {
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div className="card bg-gradient-to-r from-red-600 to-orange-600 text-white">
+            <div className="card bg-gradient-to-r from-rose-700 via-orange-700 to-amber-600 text-white">
                 <div className="flex items-center justify-between">
                     <div>
-                        <h1 className="text-2xl font-bold mb-1">Anomaly Detection</h1>
-                        <p className="text-red-100">Identify outliers and unusual patterns in your data</p>
+                        <h1 className="title-display mb-1 text-2xl font-bold">Anomaly Detection</h1>
+                        <p className="text-rose-100">Identify outliers and unusual patterns in your data</p>
                     </div>
                     <button
                         onClick={runDetection}
                         disabled={analyzing}
-                        className="bg-white text-red-600 px-6 py-3 rounded-lg font-semibold hover:bg-red-50 transition flex items-center gap-2"
+                        className="rounded-xl bg-white px-6 py-3 font-semibold text-rose-700 transition hover:bg-rose-50 flex items-center gap-2"
                     >
                         <Play size={18} />
                         {analyzing ? 'Detecting...' : 'Run Detection'}
@@ -184,8 +184,8 @@ function AnomalyDetection({ dataset }) {
                     {/* Summary Cards */}
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <div className="card text-center">
-                            <p className="text-3xl font-bold text-gray-800">{results.totalRows}</p>
-                            <p className="text-gray-500">Total Records</p>
+                            <p className="text-3xl font-bold text-slate-800">{results.totalRows}</p>
+                            <p className="text-slate-500">Total Records</p>
                         </div>
                         <div className="card text-center bg-red-50 border-red-200">
                             <p className="text-3xl font-bold text-red-600">{results.anomalyCount}</p>
@@ -197,7 +197,7 @@ function AnomalyDetection({ dataset }) {
                         </div>
                         <div className="card text-center">
                             <p className="text-3xl font-bold text-orange-600">{results.anomalyPercentage}%</p>
-                            <p className="text-gray-500">Anomaly Rate</p>
+                            <p className="text-slate-500">Anomaly Rate</p>
                         </div>
                     </div>
 
@@ -211,7 +211,7 @@ function AnomalyDetection({ dataset }) {
                                 <select
                                     value={selectedColumns.x}
                                     onChange={(e) => setSelectedColumns({ ...selectedColumns, x: e.target.value })}
-                                    className="px-3 py-1 border rounded text-sm"
+                                    className="rounded-lg border border-slate-300 px-3 py-1 text-sm"
                                 >
                                     {results.numericCols.map(col => (
                                         <option key={col} value={col}>{col}</option>
@@ -221,7 +221,7 @@ function AnomalyDetection({ dataset }) {
                                 <select
                                     value={selectedColumns.y}
                                     onChange={(e) => setSelectedColumns({ ...selectedColumns, y: e.target.value })}
-                                    className="px-3 py-1 border rounded text-sm"
+                                    className="rounded-lg border border-slate-300 px-3 py-1 text-sm"
                                 >
                                     {results.numericCols.map(col => (
                                         <option key={col} value={col}>{col}</option>
@@ -280,7 +280,7 @@ function AnomalyDetection({ dataset }) {
                         <div className="overflow-x-auto">
                             <table className="w-full text-sm">
                                 <thead>
-                                    <tr className="bg-gray-50">
+                                    <tr className="bg-slate-50">
                                         <th className="px-4 py-2 text-left">Column</th>
                                         <th className="px-4 py-2 text-left">Normal Mean</th>
                                         <th className="px-4 py-2 text-left">Anomaly Mean</th>
@@ -289,7 +289,7 @@ function AnomalyDetection({ dataset }) {
                                 </thead>
                                 <tbody>
                                     {results.columnStats.map((stat, i) => (
-                                        <tr key={i} className="border-b hover:bg-gray-50">
+                                        <tr key={i} className="border-b hover:bg-slate-50">
                                             <td className="px-4 py-2 font-medium">{stat.column}</td>
                                             <td className="px-4 py-2 text-green-600">{stat.normalMean}</td>
                                             <td className="px-4 py-2 text-red-600">{stat.anomalyMean}</td>

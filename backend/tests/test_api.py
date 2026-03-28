@@ -1,23 +1,27 @@
 import pytest
-from fastapi.testclient import TestClient
-from unittest.mock import Mock, AsyncMock, patch
+import pytest_asyncio
+from httpx import ASGITransport, AsyncClient
 from app.main import app
 
 
-@pytest.fixture
-def client():
-    return TestClient(app)
+@pytest_asyncio.fixture
+async def client():
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        yield ac
 
 
-def test_health_check(client):
+@pytest.mark.asyncio
+async def test_health_check(client):
     """Test health endpoint"""
-    response = client.get("/health")
+    response = await client.get("/health")
     assert response.status_code == 200
     assert response.json()["status"] == "healthy"
 
 
-def test_root(client):
+@pytest.mark.asyncio
+async def test_root(client):
     """Test root endpoint"""
-    response = client.get("/")
+    response = await client.get("/")
     assert response.status_code == 200
     assert "message" in response.json()

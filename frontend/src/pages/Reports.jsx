@@ -2,6 +2,13 @@ import React, { useState } from 'react'
 import { FileText, Download, Loader, CheckCircle, AlertCircle, BarChart3, Brain, AlertTriangle, TrendingUp, Eye, Settings, RefreshCw } from 'lucide-react'
 import { useAnalysis } from '../context/AnalysisContext'
 
+const STATUS_ICON_CLASS = {
+    green: 'text-green-600',
+    purple: 'text-purple-600',
+    red: 'text-red-600',
+    cyan: 'text-cyan-600'
+}
+
 function Reports({ dataset }) {
     const [ generating, setGenerating ] = useState(false)
     const [ reportData, setReportData ] = useState(null)
@@ -28,94 +35,161 @@ function Reports({ dataset }) {
 
     const buildReport = () => {
         const now = new Date().toLocaleString()
+        const allStats = edaResults?.statistics || []
+        const allCorrelations = [ ...(edaResults?.correlations || []) ]
+            .filter(c => Number.isFinite(c.correlation))
+            .sort((a, b) => Math.abs(b.correlation) - Math.abs(a.correlation))
+        const allMissing = edaResults?.missingData || []
+        const allInsights = edaResults?.insights || []
+
+        const toNumber = (value) => {
+            const n = Number(value)
+            return Number.isFinite(n) ? n : 0
+        }
+
         let html = `<!DOCTYPE html><html><head>
-<title>Data Analysis Report - ${dataset.name}</title>
+<title>Professional Data Analysis Report - ${dataset.name}</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
+:root{
+    --ink:#182433;
+    --muted:#526274;
+    --line:#d6dee8;
+    --paper:#ffffff;
+    --canvas:#f2f5f9;
+    --brand:#0f5ea8;
+    --brand-2:#103a5d;
+    --accent:#d99700;
+    --ok:#0f9d58;
+    --warn:#ef8f00;
+    --danger:#d32f2f;
+}
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Segoe UI',Arial,sans-serif;line-height:1.6;color:#333;max-width:1200px;margin:0 auto;padding:40px;background:#f5f5f5}
-.report{background:white;padding:40px;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,0.1)}
-h1{color:#7c3aed;font-size:2.2em;margin-bottom:10px;border-bottom:3px solid #7c3aed;padding-bottom:15px}
-h2{color:#1f2937;font-size:1.6em;margin:30px 0 15px;padding:10px 0;border-bottom:2px solid #e5e7eb}
-h3{color:#4b5563;font-size:1.2em;margin:20px 0 10px}
-.meta{color:#6b7280;margin-bottom:30px}
-.section{margin:30px 0;padding:25px;background:#f9fafb;border-radius:8px;border-left:4px solid #7c3aed}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:15px;margin:20px 0}
-.card{background:white;padding:20px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.05);text-align:center}
-.card-value{font-size:1.8em;font-weight:bold;color:#7c3aed}
-.card-label{color:#6b7280;font-size:0.85em;margin-top:5px}
-table{width:100%;border-collapse:collapse;margin:15px 0;background:white;border-radius:8px;overflow:hidden;font-size:0.9em}
-th,td{padding:10px 12px;text-align:left;border-bottom:1px solid #e5e7eb}
-th{background:#7c3aed;color:white;font-weight:600}
-tr:hover{background:#f3f4f6}
-.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:0.8em;font-weight:500}
-.chart-container{background:white;padding:20px;border-radius:8px;margin:20px 0;box-shadow:0 2px 8px rgba(0,0,0,0.05)}
-canvas{max-height:400px}
-.badge-success{background:#d1fae5;color:#065f46}
-.badge-warning{background:#fef3c7;color:#92400e}
-.badge-danger{background:#fee2e2;color:#991b1b}
-.badge-info{background:#dbeafe;color:#1e40af}
-.insight{padding:15px;margin:10px 0;border-radius:8px}
-.insight-success{background:#ecfdf5;border-left:4px solid #10b981}
-.insight-warning{background:#fffbeb;border-left:4px solid #f59e0b}
-.insight-info{background:#eff6ff;border-left:4px solid #3b82f6}
-.footer{margin-top:40px;padding-top:20px;border-top:2px solid #e5e7eb;color:#6b7280;text-align:center}
-.chart-placeholder{background:#f3f4f6;border:2px dashed #d1d5db;border-radius:8px;padding:40px;text-align:center;color:#6b7280}
-@media print{body{background:white}.report{box-shadow:none}}
+body{font-family:Georgia,'Times New Roman',serif;line-height:1.6;color:var(--ink);background:var(--canvas);padding:24px}
+.report{max-width:1200px;margin:0 auto;background:var(--paper);border:1px solid var(--line);box-shadow:0 14px 36px rgba(16,27,41,.12)}
+.cover{padding:46px 54px;background:linear-gradient(135deg,var(--brand-2),var(--brand));color:#fff;border-bottom:6px solid var(--accent)}
+.cover h1{font-size:2.2rem;letter-spacing:.4px;margin-bottom:8px}
+.cover p{opacity:.92}
+.meta-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:18px}
+.meta-card{background:rgba(255,255,255,.12);padding:12px;border:1px solid rgba(255,255,255,.2)}
+.meta-card .label{font-size:.75rem;text-transform:uppercase;opacity:.85}
+.meta-card .value{font-size:1.15rem;font-weight:700}
+.content{padding:34px 42px}
+h2{margin:26px 0 12px;border-bottom:2px solid var(--line);padding-bottom:8px;color:var(--brand-2);font-size:1.45rem}
+h3{margin:16px 0 10px;color:var(--brand);font-size:1.1rem}
+h4{margin:10px 0 8px;color:var(--ink);font-size:1rem}
+.toc{padding:16px 18px;border:1px solid var(--line);background:#fafcff}
+.toc ol{margin-left:18px}
+.toc li{margin:4px 0}
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.kpi{border:1px solid var(--line);padding:12px;background:#fff}
+.kpi .k{font-size:.78rem;text-transform:uppercase;color:var(--muted)}
+.kpi .v{font-size:1.55rem;font-weight:700;color:var(--brand-2)}
+.section{margin:24px 0;padding:18px;border:1px solid var(--line);background:#fbfcff}
+table{width:100%;border-collapse:collapse;margin:12px 0;background:#fff;font-size:.92rem}
+th,td{padding:9px 10px;text-align:left;border:1px solid var(--line);vertical-align:top}
+th{background:#edf3fa;color:var(--brand-2);font-weight:700}
+.badge{display:inline-block;padding:3px 9px;border-radius:14px;font-size:.76rem;font-weight:700}
+.badge-success{background:#d9f4e7;color:#0b6f3d}
+.badge-warning{background:#fff0cf;color:#925700}
+.badge-danger{background:#ffe0df;color:#8f1f1f}
+.badge-info{background:#e3eefb;color:#194a84}
+.insight{padding:12px;margin:8px 0;border-left:4px solid var(--brand);background:#f5f9ff}
+.insight-success{background:#ecf9f2;border-left-color:var(--ok)}
+.insight-warning{background:#fff8ea;border-left-color:var(--warn)}
+.insight-info{background:#eef6ff;border-left-color:var(--brand)}
+.chart-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(430px,1fr));gap:14px}
+.chart-card{border:1px solid var(--line);background:#fff;padding:12px}
+.chart-card canvas{width:100%;max-height:340px}
+.full-chart{border:1px solid var(--line);background:#fff;padding:12px;min-height:360px}
+.full-chart canvas{width:100%;max-height:none}
+.footer{margin-top:34px;padding-top:14px;border-top:1px solid var(--line);font-size:.88rem;color:var(--muted);text-align:center}
+.break-page{page-break-before:always}
+@media print{
+    body{background:#fff;padding:0}
+    .report{box-shadow:none;border:none}
+    .section,.chart-card,.full-chart,.kpi,.toc{break-inside:avoid}
+}
 </style></head><body><div class="report">
-<h1>📊 Comprehensive Data Analysis Report</h1>
-<p class="meta">Generated: ${now} | Dataset: <strong>${dataset.name}</strong></p>`
+<div class="cover">
+    <h1>Professional Data Analysis Report</h1>
+    <p>Comprehensive exploratory analysis, statistical profiling, correlations, visual insights, and model performance summary.</p>
+    <div class="meta-grid">
+        <div class="meta-card"><div class="label">Dataset</div><div class="value">${dataset.name}</div></div>
+        <div class="meta-card"><div class="label">Generated</div><div class="value">${now}</div></div>
+        <div class="meta-card"><div class="label">Rows × Columns</div><div class="value">${dataset.rowCount.toLocaleString()} × ${dataset.colCount}</div></div>
+    </div>
+</div>
+<div class="content">`
+
+        html += `<h2>Table of Contents</h2>
+<div class="toc">
+    <ol>
+        <li>Dataset Overview</li>
+        <li>EDA Summary and Data Quality</li>
+        <li>Statistical Tables</li>
+        <li>Correlation Analysis (All Pairs)</li>
+        <li>Distribution Analysis (All Numeric Features)</li>
+        <li>AI Insights</li>
+        <li>Machine Learning Results</li>
+        <li>Anomaly Detection</li>
+        <li>Time Series Analysis</li>
+        <li>Recommendations and Next Steps</li>
+    </ol>
+</div>`
 
         // Dataset Overview
-        html += `<h2>📁 Dataset Overview</h2>
-<div class="grid">
-<div class="card"><div class="card-value">${dataset.rowCount.toLocaleString()}</div><div class="card-label">Total Rows</div></div>
-<div class="card"><div class="card-value">${dataset.colCount}</div><div class="card-label">Total Columns</div></div>
-<div class="card"><div class="card-value">${edaResults?.summary?.numericCols || '-'}</div><div class="card-label">Numeric</div></div>
-<div class="card"><div class="card-value">${edaResults?.summary?.categoricalCols || '-'}</div><div class="card-label">Categorical</div></div>
+        html += `<h2>1. Dataset Overview</h2>
+<div class="kpi-grid">
+<div class="kpi"><div class="k">Rows</div><div class="v">${dataset.rowCount.toLocaleString()}</div></div>
+<div class="kpi"><div class="k">Columns</div><div class="v">${dataset.colCount}</div></div>
+<div class="kpi"><div class="k">Numeric Columns</div><div class="v">${edaResults?.summary?.numericCols || '-'}</div></div>
+<div class="kpi"><div class="k">Categorical Columns</div><div class="v">${edaResults?.summary?.categoricalCols || '-'}</div></div>
+<div class="kpi"><div class="k">Data Quality Score</div><div class="v">${edaResults?.qualityScore || '-'}</div></div>
 </div>`
 
         if (config.includeDataPreview) {
             html += `<h3>Data Preview</h3><table><thead><tr>${dataset.headers.slice(0, 8).map(h => `<th>${h}</th>`).join('')}</tr></thead>
-<tbody>${dataset.rows.slice(0, 5).map(row => `<tr>${dataset.headers.slice(0, 8).map(h => `<td>${row[ h ] || '-'}</td>`).join('')}</tr>`).join('')}</tbody></table>`
+<tbody>${dataset.rows.slice(0, 5).map(row => `<tr>${dataset.headers.slice(0, 8).map(h => `<td>${row[ h ] ?? '-'}</td>`).join('')}</tr>`).join('')}</tbody></table>`
         }
 
         // EDA Section
         if (config.includeEDA && edaResults) {
-            html += `<h2>🔍 Exploratory Data Analysis</h2><div class="section">
-<div class="grid">
-<div class="card"><div class="card-value" style="color:${edaResults.qualityScore >= 80 ? '#10b981' : edaResults.qualityScore >= 60 ? '#f59e0b' : '#ef4444'}">${edaResults.qualityScore}/100</div><div class="card-label">Quality Score</div></div>
-<div class="card"><div class="card-value">${edaResults.summary?.missingTotal || 0}</div><div class="card-label">Missing Values</div></div>
-<div class="card"><div class="card-value">${edaResults.summary?.outlierTotal || 0}</div><div class="card-label">Outliers</div></div>
-<div class="card"><div class="card-value">${edaResults.summary?.duplicateRows || 0}</div><div class="card-label">Duplicates</div></div>
+            html += `<h2>2. EDA Summary and Data Quality</h2><div class="section">
+<div class="kpi-grid">
+<div class="kpi"><div class="k">Quality Score</div><div class="v" style="color:${edaResults.qualityScore >= 80 ? '#0f9d58' : edaResults.qualityScore >= 60 ? '#ef8f00' : '#d32f2f'}">${edaResults.qualityScore}/100</div></div>
+<div class="kpi"><div class="k">Missing Values</div><div class="v">${edaResults.summary?.missingTotal || 0}</div></div>
+<div class="kpi"><div class="k">Outliers</div><div class="v">${edaResults.summary?.outlierTotal || 0}</div></div>
+<div class="kpi"><div class="k">Duplicates</div><div class="v">${edaResults.summary?.duplicateRows || 0}</div></div>
+<div class="kpi"><div class="k">Correlation Pairs</div><div class="v">${allCorrelations.length}</div></div>
+<div class="kpi"><div class="k">Distribution Charts</div><div class="v">${allStats.length}</div></div>
 </div>
-<h3>Statistical Summary</h3><table><thead><tr><th>Column</th><th>Mean</th><th>Std</th><th>Min</th><th>Max</th><th>Outliers</th><th>Skewness</th></tr></thead>
+<h3>3. Statistical Summary (All Numeric Columns)</h3><table><thead><tr><th>Column</th><th>Mean</th><th>Std</th><th>Min</th><th>Max</th><th>Outliers</th><th>Skewness</th></tr></thead>
 <tbody>${(edaResults.statistics || []).map(s => `<tr><td><strong>${s.name}</strong></td><td>${s.mean?.toFixed?.(2) || s.mean}</td><td>${s.std?.toFixed?.(2) || s.std}</td><td>${s.min?.toFixed?.(2) || s.min}</td><td>${s.max?.toFixed?.(2) || s.max}</td><td><span class="badge ${s.outlierCount > 0 ? 'badge-warning' : 'badge-success'}">${s.outlierCount || 0}</span></td><td>${s.skewness || '-'}</td></tr>`).join('')}</tbody></table>
 <h3>Missing Data Analysis</h3><table><thead><tr><th>Column</th><th>Missing</th><th>%</th><th>Status</th></tr></thead>
 <tbody>${(edaResults.missingData || []).map(m => `<tr><td>${m.name}</td><td>${m.missing}</td><td>${m.percentage?.toFixed?.(1) || m.percentage}%</td><td><span class="badge ${parseFloat(m.percentage) === 0 ? 'badge-success' : parseFloat(m.percentage) < 10 ? 'badge-warning' : 'badge-danger'}">${parseFloat(m.percentage) === 0 ? 'Complete' : parseFloat(m.percentage) < 10 ? 'Low' : 'High'}</span></td></tr>`).join('')}</tbody></table>`
 
             // Correlations
-            if (edaResults.correlations?.length > 0) {
-                const topCorr = edaResults.correlations.sort((a, b) => Math.abs(b.correlation) - Math.abs(a.correlation)).slice(0, 10)
-                html += `<h3>Top Correlations</h3><table><thead><tr><th>Feature 1</th><th>Feature 2</th><th>Correlation</th><th>Strength</th></tr></thead>
-<tbody>${topCorr.map(c => `<tr><td>${c.feature1}</td><td>${c.feature2}</td><td style="color:${c.correlation > 0 ? '#10b981' : '#ef4444'}">${c.correlation?.toFixed?.(3) || c.correlation}</td><td><span class="badge badge-info">${c.strength}</span></td></tr>`).join('')}</tbody></table>`
+            if (allCorrelations.length > 0) {
+                html += `<h3>4. Correlation Analysis (All Pairs)</h3><table><thead><tr><th>#</th><th>Feature 1</th><th>Feature 2</th><th>Correlation</th><th>Strength</th><th>Direction</th></tr></thead>
+<tbody>${allCorrelations.map((c, i) => `<tr><td>${i + 1}</td><td>${c.feature1}</td><td>${c.feature2}</td><td style="color:${c.correlation > 0 ? '#0f9d58' : '#d32f2f'}">${c.correlation?.toFixed?.(3) || c.correlation}</td><td><span class="badge badge-info">${c.strength || '-'}</span></td><td>${c.direction || (c.correlation > 0 ? 'Positive' : 'Negative')}</td></tr>`).join('')}</tbody></table>`
             }
 
             // Insights
-            if (edaResults.insights?.length > 0) {
-                html += `<h3>AI-Generated Insights</h3>`
-                edaResults.insights.forEach(i => {
+            if (allInsights.length > 0) {
+                html += `<h3>6. AI-Generated Insights</h3>`
+                allInsights.forEach(i => {
                     html += `<div class="insight insight-${i.type === 'warning' ? 'warning' : i.type === 'success' ? 'success' : 'info'}"><strong>${i.title}:</strong> ${i.desc} <em>(${i.action})</em></div>`
                 })
             }
 
             // Add Charts
-            html += `<h3>📊 Visual Analysis</h3>`
+            html += `<h3>5. Visual Analysis (Complete Coverage)</h3>`
 
             // Missing Data Chart
             if (edaResults.missingData?.length > 0) {
                 const missingChartData = edaResults.missingData.filter(m => m.missing > 0).slice(0, 10)
-                html += `<div class="chart-container"><canvas id="missingChart"></canvas></div>
+                html += `<div class="chart-card"><h4>Missing Data by Column</h4><canvas id="missingChart"></canvas></div>
 <script>
 new Chart(document.getElementById('missingChart'), {
     type: 'bar',
@@ -138,10 +212,10 @@ new Chart(document.getElementById('missingChart'), {
 </script>`
             }
 
-            // Statistics Distribution Chart
-            if (edaResults.statistics?.length > 0) {
-                const statsData = edaResults.statistics.slice(0, 8)
-                html += `<div class="chart-container"><canvas id="statsChart"></canvas></div>
+            // Overview statistics chart
+            if (allStats.length > 0) {
+                const statsData = allStats
+                html += `<div class="chart-card"><h4>Statistical Summary Across Features</h4><canvas id="statsChart"></canvas></div>
 <script>
 new Chart(document.getElementById('statsChart'), {
     type: 'bar',
@@ -159,25 +233,24 @@ new Chart(document.getElementById('statsChart'), {
     },
     options: {
         responsive: true,
-        plugins: { title: { display: true, text: 'Statistical Summary' } }
+        plugins: { title: { display: false } }
     }
 });
 </script>`
             }
 
-            // Correlation Heatmap (Top 10)
-            if (edaResults.correlations?.length > 0) {
-                const topCorr = edaResults.correlations.sort((a, b) => Math.abs(b.correlation) - Math.abs(a.correlation)).slice(0, 10)
-                html += `<div class="chart-container"><canvas id="corrChart"></canvas></div>
+            // Correlation chart for all pairs
+            if (allCorrelations.length > 0) {
+                html += `<div class="full-chart"><h4>All Correlations</h4><canvas id="corrChart" style="height:${Math.max(360, allCorrelations.length * 24)}px"></canvas></div>
 <script>
 new Chart(document.getElementById('corrChart'), {
     type: 'bar',
     data: {
-        labels: ${JSON.stringify(topCorr.map(c => `${c.feature1} vs ${c.feature2}`))},
+        labels: ${JSON.stringify(allCorrelations.map(c => `${c.feature1} vs ${c.feature2}`))},
         datasets: [{
             label: 'Correlation',
-            data: ${JSON.stringify(topCorr.map(c => c.correlation))},
-            backgroundColor: ${JSON.stringify(topCorr.map(c => c.correlation > 0 ? 'rgba(16, 185, 129, 0.7)' : 'rgba(239, 68, 68, 0.7)'))},
+            data: ${JSON.stringify(allCorrelations.map(c => c.correlation))},
+            backgroundColor: ${JSON.stringify(allCorrelations.map(c => c.correlation > 0 ? 'rgba(15, 157, 88, 0.7)' : 'rgba(211, 47, 47, 0.7)'))},
             borderWidth: 1
         }]
     },
@@ -191,6 +264,87 @@ new Chart(document.getElementById('corrChart'), {
 </script>`
             }
 
+            // Distribution charts for every numeric column
+            if (allStats.length > 0) {
+                html += `<div class="break-page"></div><h3>Distribution Charts (All Numeric Features)</h3><div class="chart-grid">`
+                allStats.forEach((s, i) => {
+                    html += `<div class="chart-card"><h4>${s.name}</h4><canvas id="distChart_${i}"></canvas></div>`
+                })
+                html += `</div><script>`
+                allStats.forEach((s, i) => {
+                    html += `
+new Chart(document.getElementById('distChart_${i}'), {
+    type: 'bar',
+    data: {
+        labels: ${JSON.stringify((s.distribution || []).map(d => d.bin))},
+        datasets: [{
+            type: 'bar',
+            label: 'Count',
+            data: ${JSON.stringify((s.distribution || []).map(d => toNumber(d.count)))},
+            backgroundColor: 'rgba(16, 94, 168, 0.55)',
+            borderColor: 'rgba(16, 58, 93, 1)',
+            borderWidth: 1
+        }, {
+            type: 'line',
+            label: 'Distribution Shape',
+            data: ${JSON.stringify((s.distribution || []).map(d => toNumber(d.count)))},
+            borderColor: 'rgba(217, 151, 0, 1)',
+            backgroundColor: 'rgba(217, 151, 0, 0.15)',
+            tension: 0.3,
+            fill: false,
+            pointRadius: 0
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            title: { display: true, text: 'Distribution of ${s.name}' }
+        },
+        scales: {
+            x: { ticks: { maxTicksLimit: 10 } },
+            y: { beginAtZero: true }
+        }
+    }
+});`
+                })
+                html += `</script>`
+            }
+
+            // Scatter charts for every correlation pair
+            if (allCorrelations.length > 0) {
+                html += `<div class="break-page"></div><h3>Correlation Scatter Charts (All Pairs)</h3><div class="chart-grid">`
+                allCorrelations.forEach((c, i) => {
+                    html += `<div class="chart-card"><h4>${c.feature1} vs ${c.feature2}</h4><canvas id="corrScatter_${i}"></canvas></div>`
+                })
+                html += `</div><script>`
+                allCorrelations.forEach((c, i) => {
+                    html += `
+new Chart(document.getElementById('corrScatter_${i}'), {
+    type: 'scatter',
+    data: {
+        datasets: [{
+            label: '${c.feature1} vs ${c.feature2}',
+            data: ${JSON.stringify((c.scatterData || []).map(p => ({ x: toNumber(p.x), y: toNumber(p.y) })))},
+            pointRadius: 2,
+            pointBackgroundColor: '${c.correlation > 0 ? 'rgba(15, 157, 88, 0.65)' : 'rgba(211, 47, 47, 0.65)'}'
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            title: { display: true, text: 'r = ${toNumber(c.correlation).toFixed(3)} (${c.strength || 'N/A'})' },
+            legend: { display: false }
+        },
+        scales: {
+            x: { title: { display: true, text: '${c.feature1}' } },
+            y: { title: { display: true, text: '${c.feature2}' } }
+        }
+    }
+});`
+                })
+                html += `</script>`
+            }
+
             html += `</div>`
         }
 
@@ -198,7 +352,7 @@ new Chart(document.getElementById('corrChart'), {
         if (config.includeML && mlResults) {
             const bestModel = mlResults.models?.[ 0 ]
             const isClassification = mlResults.taskType === 'classification'
-            html += `<h2>🤖 Machine Learning Results</h2><div class="section">
+            html += `<h2>7. Machine Learning Results</h2><div class="section">
 <div class="insight insight-success"><strong>🏆 Best Model:</strong> ${bestModel?.type || bestModel?.name || 'N/A'} with ${isClassification ? (bestModel?.accuracy * 100)?.toFixed(1) + '% accuracy' : bestModel?.r2?.toFixed(4) + ' R² score'}</div>
 <div class="grid">
 <div class="card"><div class="card-value">${mlResults.models?.length || 0}</div><div class="card-label">Models Trained</div></div>
@@ -215,11 +369,11 @@ new Chart(document.getElementById('corrChart'), {
             }
 
             // ML Charts
-            html += `<h3>📊 Model Performance Visualization</h3>`
+            html += `<h3>Model Performance Visualization</h3>`
 
             // Model Comparison Chart
             const topModels = mlResults.models?.slice(0, 8) || []
-            html += `<div class="chart-container"><canvas id="mlChart"></canvas></div>
+            html += `<div class="chart-card"><h4>Model Performance Comparison</h4><canvas id="mlChart"></canvas></div>
 <script>
 new Chart(document.getElementById('mlChart'), {
     type: 'bar',
@@ -250,7 +404,7 @@ new Chart(document.getElementById('mlChart'), {
             // Feature Importance Chart
             if (mlResults.featureImportance?.length > 0) {
                 const topFeatures = mlResults.featureImportance.slice(0, 10)
-                html += `<div class="chart-container"><canvas id="featureChart"></canvas></div>
+                html += `<div class="chart-card"><h4>Feature Importance</h4><canvas id="featureChart"></canvas></div>
 <script>
 new Chart(document.getElementById('featureChart'), {
     type: 'bar',
@@ -278,7 +432,7 @@ new Chart(document.getElementById('featureChart'), {
 
         // Anomaly Section
         if (config.includeAnomaly && anomalyResults) {
-            html += `<h2>⚠️ Anomaly Detection Results</h2><div class="section">
+            html += `<h2>8. Anomaly Detection Results</h2><div class="section">
 <div class="grid">
 <div class="card"><div class="card-value">${anomalyResults.totalRows?.toLocaleString()}</div><div class="card-label">Total Records</div></div>
 <div class="card"><div class="card-value" style="color:#ef4444">${anomalyResults.anomalyCount}</div><div class="card-label">Anomalies</div></div>
@@ -299,7 +453,7 @@ new Chart(document.getElementById('featureChart'), {
         // Time Series Section
         if (config.includeTimeSeries && timeSeriesResults) {
             const ts = timeSeriesResults.statistics
-            html += `<h2>📈 Time Series Analysis</h2><div class="section">
+            html += `<h2>9. Time Series Analysis</h2><div class="section">
 <div class="grid">
 <div class="card"><div class="card-value">${ts?.dataPoints?.toLocaleString() || '-'}</div><div class="card-label">Data Points</div></div>
 <div class="card"><div class="card-value" style="color:${ts?.trend === 'Upward' ? '#10b981' : '#ef4444'}">${ts?.trend || '-'}</div><div class="card-label">Trend</div></div>
@@ -320,7 +474,7 @@ new Chart(document.getElementById('featureChart'), {
         }
 
         // Recommendations
-        html += `<h2>💡 Recommendations & Next Steps</h2><div class="section">`
+        html += `<h2>10. Recommendations and Next Steps</h2><div class="section">`
 
         if (edaResults) {
             html += `<div class="insight ${edaResults.qualityScore >= 80 ? 'insight-success' : 'insight-warning'}"><strong>Data Quality:</strong> ${edaResults.qualityScore >= 80 ? 'Excellent data quality (' + edaResults.qualityScore + '/100). Ready for advanced modeling.' : 'Data quality score is ' + edaResults.qualityScore + '/100. Consider addressing missing values and outliers.'}</div>`
@@ -336,7 +490,7 @@ new Chart(document.getElementById('featureChart'), {
         }
 
         html += `</div>
-<div class="footer"><p>Generated by <strong>AI Data Science Research Assistant</strong></p><p>${now}</p></div>
+    <div class="footer"><p>Prepared by <strong>AI Data Science Research Assistant</strong></p><p>${now}</p></div>
 </div></body></html>`
         return html
     }
@@ -371,13 +525,13 @@ new Chart(document.getElementById('featureChart'), {
 
     return (
         <div className="space-y-6">
-            <div className="card bg-gradient-to-r from-indigo-600 to-purple-600 text-white">
+            <div className="card bg-gradient-to-r from-blue-800 via-teal-700 to-orange-600 text-white">
                 <div className="flex items-center justify-between">
                     <div>
-                        <h1 className="text-2xl font-bold mb-1">Comprehensive Report Generator</h1>
-                        <p className="text-indigo-100">Generate full analysis reports with all insights & visualizations</p>
+                        <h1 className="title-display mb-1 text-2xl font-bold">Comprehensive Report Generator</h1>
+                        <p className="text-cyan-100">Generate full analysis reports with all insights & visualizations</p>
                     </div>
-                    <button onClick={generateReport} disabled={generating} className="bg-white text-indigo-600 px-6 py-3 rounded-lg font-semibold hover:bg-indigo-50 transition flex items-center gap-2">
+                    <button onClick={generateReport} disabled={generating} className="flex items-center gap-2 rounded-lg bg-white px-6 py-3 font-semibold text-blue-700 transition hover:bg-blue-50 disabled:opacity-70">
                         {generating ? <Loader size={18} className="animate-spin" /> : <FileText size={18} />}
                         {generating ? 'Generating...' : 'Generate Report'}
                     </button>
@@ -396,12 +550,12 @@ new Chart(document.getElementById('featureChart'), {
                     const hasData = !!item.data
                     return (
                         <div key={item.key} className={`card ${hasData ? '' : 'opacity-60'}`}>
-                            <div className="flex items-center justify-between mb-2">
-                                <Icon size={24} className={`text-${item.color}-600`} />
+                            <div className="mb-2 flex items-center justify-between">
+                                <Icon size={24} className={STATUS_ICON_CLASS[ item.color ] || 'text-slate-600'} />
                                 {hasData ? <CheckCircle size={18} className="text-green-500" /> : <AlertCircle size={18} className="text-gray-400" />}
                             </div>
-                            <p className={`text-lg font-bold ${hasData ? `text-${item.color}-600` : 'text-gray-400'}`}>{item.value}</p>
-                            <p className="text-gray-500 text-sm">{item.label} Analysis</p>
+                            <p className={`text-lg font-bold ${hasData ? (STATUS_ICON_CLASS[ item.color ] || 'text-slate-700') : 'text-gray-400'}`}>{item.value}</p>
+                            <p className="text-sm text-gray-500">{item.label} Analysis</p>
                         </div>
                     )
                 })}
