@@ -6,13 +6,23 @@ Supports 40+ models with hyperparameter tuning
 import numpy as np
 import pandas as pd
 from typing import Dict, Any, List, Optional, Tuple
-from sklearn.model_selection import train_test_split, cross_val_score, StratifiedKFold, KFold
+from sklearn.model_selection import (
+    train_test_split,
+    cross_val_score,
+    StratifiedKFold,
+    KFold,
+    GridSearchCV,
+    RandomizedSearchCV,
+    ParameterGrid,
+)
 from sklearn.metrics import (
     accuracy_score, precision_score, recall_score, f1_score,
     r2_score, mean_squared_error, mean_absolute_error,
-    confusion_matrix, classification_report, roc_auc_score, roc_curve
+    confusion_matrix, classification_report, roc_auc_score, roc_curve,
+    silhouette_score, calinski_harabasz_score, davies_bouldin_score,
 )
 from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn.cluster import KMeans, DBSCAN, AgglomerativeClustering
 import warnings
 import time
 import joblib
@@ -26,6 +36,157 @@ class MLEngine:
         self._check_gpu()
         self.models = {}
         self.best_model = None
+
+    def _get_hyperparameter_space(self, model_name: str, task_type: str) -> Dict[str, List[Any]]:
+        name = model_name.lower()
+
+        if 'random forest' in name:
+            return {
+                'n_estimators': [100, 200, 300],
+                'max_depth': [None, 8, 16],
+                'min_samples_split': [2, 5, 10],
+            }
+        if 'decision tree' in name:
+            return {
+                'max_depth': [None, 5, 10, 20],
+                'min_samples_split': [2, 5, 10],
+                'min_samples_leaf': [1, 2, 4],
+            }
+        if 'logistic regression' in name:
+            return {
+                'C': [0.01, 0.1, 1.0, 10.0],
+                'solver': ['lbfgs', 'liblinear'],
+            }
+        if 'linear regression' in name:
+            return {}
+        if 'xgboost' in name:
+            return {
+                'n_estimators': [100, 200, 300],
+                'learning_rate': [0.01, 0.05, 0.1],
+                'max_depth': [3, 6, 10],
+            }
+        if 'svm' in name or 'svr' in name:
+            return {
+                'C': [0.1, 1.0, 10.0],
+                'gamma': ['scale', 'auto'],
+                'kernel': ['rbf', 'linear'],
+            }
+        if 'knn' in name or 'neighbor' in name:
+            return {
+                'n_neighbors': [3, 5, 7, 11],
+                'weights': ['uniform', 'distance'],
+                'p': [1, 2],
+            }
+
+        return {}
+
+    def _tune_model(
+        self,
+        model: Any,
+        model_name: str,
+        task_type: str,
+        X_train: np.ndarray,
+        y_train: np.ndarray,
+        cv_folds: int,
+        n_trials: int,
+    ) -> Tuple[Any, Dict[str, Any]]:
+        params = self._get_hyperparameter_space(model_name, task_type)
+        if not params:
+            return model, {'applied': False, 'strategy': None, 'reason': 'No tunable parameter space'}
+
+        scoring = 'accuracy' if task_type == 'classification' else 'r2'
+        grid_size = len(ParameterGrid(params))
+        cv = StratifiedKFold(n_splits=cv_folds, shuffle=True, random_state=42) if task_type == 'classification' else KFold(n_splits=cv_folds, shuffle=True, random_state=42)
+
+        if grid_size <= max(20, n_trials // 2):
+            search = GridSearchCV(model, params, cv=cv, scoring=scoring, n_jobs=-1)
+            strategy = 'grid_search'
+        else:
+            search = RandomizedSearchCV(
+                model,
+                params,
+                n_iter=min(n_trials, grid_size),
+                cv=cv,
+                scoring=scoring,
+                random_state=42,
+                n_jobs=-1,
+            )
+            strategy = 'random_search'
+
+        search.fit(X_train, y_train)
+        return search.best_estimator_, {
+            'applied': True,
+            'strategy': strategy,
+            'best_score': float(search.best_score_),
+            'best_params': search.best_params_,
+            'candidate_count': grid_size,
+        }
+
+    def cluster_data(
+        self,
+        X: np.ndarray,
+        algorithm: str = 'kmeans',
+        n_clusters: int = 3,
+        eps: float = 0.5,
+        min_samples: int = 5,
+    ) -> Dict[str, Any]:
+        algo = str(algorithm or 'kmeans').strip().lower()
+
+        if algo == 'dbscan':
+            model = DBSCAN(eps=eps, min_samples=min_samples)
+            labels = model.fit_predict(X)
+        elif algo == 'agglomerative':
+            model = AgglomerativeClustering(n_clusters=max(2, n_clusters))
+            labels = model.fit_predict(X)
+        else:
+            model = KMeans(n_clusters=max(2, n_clusters), random_state=42, n_init=10)
+            labels = model.fit_predict(X)
+
+        labels_arr = np.asarray(labels)
+        unique_labels = sorted(np.unique(labels_arr).tolist())
+        non_noise = labels_arr[labels_arr != -1] if algo == 'dbscan' else labels_arr
+        valid_cluster_count = len(np.unique(non_noise))
+
+        metrics = {
+            'silhouette': None,
+            'calinski_harabasz': None,
+            'davies_bouldin': None,
+            'inertia': None,
+        }
+
+        if hasattr(model, 'inertia_'):
+            try:
+                metrics['inertia'] = float(model.inertia_)
+            except Exception:
+                pass
+
+        if valid_cluster_count >= 2:
+            try:
+                metrics['silhouette'] = float(silhouette_score(X, labels_arr))
+            except Exception:
+                pass
+            try:
+                metrics['calinski_harabasz'] = float(calinski_harabasz_score(X, labels_arr))
+            except Exception:
+                pass
+            try:
+                metrics['davies_bouldin'] = float(davies_bouldin_score(X, labels_arr))
+            except Exception:
+                pass
+
+        cluster_counts = [
+            {'cluster': int(lbl), 'count': int(np.sum(labels_arr == lbl))}
+            for lbl in unique_labels
+        ]
+
+        return {
+            'algorithm': algo,
+            'labels': labels_arr.tolist(),
+            'cluster_count': int(valid_cluster_count),
+            'clusters': cluster_counts,
+            'metrics': metrics,
+            'model': model,
+        }
         
     def _check_gpu(self):
         """Check for GPU availability"""
@@ -430,6 +591,25 @@ class MLEngine:
         for name, model in models.items():
             try:
                 model_start = time.time()
+
+                tuning_info = {
+                    'applied': False,
+                    'strategy': None,
+                    'best_score': None,
+                    'best_params': None,
+                    'candidate_count': None,
+                }
+
+                if hyperparameter_tuning:
+                    model, tuning_info = self._tune_model(
+                        model=model,
+                        model_name=name,
+                        task_type=task_type,
+                        X_train=X_train_scaled,
+                        y_train=y_train,
+                        cv_folds=max(2, cv_folds),
+                        n_trials=max(5, n_trials),
+                    )
                 
                 # Train
                 model.fit(X_train_scaled, y_train)
@@ -451,6 +631,11 @@ class MLEngine:
                         try:
                             y_proba = model.predict_proba(X_test_scaled)[:, 1]
                             metrics["roc_auc"] = float(roc_auc_score(y_test, y_proba))
+                            fpr, tpr, _ = roc_curve(y_test, y_proba)
+                            metrics["roc_curve"] = {
+                                "fpr": fpr.tolist(),
+                                "tpr": tpr.tolist(),
+                            }
                         except:
                             pass
                     
@@ -477,6 +662,25 @@ class MLEngine:
                 except:
                     metrics["cv_mean"] = None
                     metrics["cv_std"] = None
+
+                # Practical bias/variance indicators from held-out vs CV behavior.
+                cv_mean = metrics.get("cv_mean")
+                cv_std = metrics.get("cv_std")
+                if cv_mean is not None:
+                    bias_proxy = max(0.0, float(cv_mean) - float(score))
+                    metrics["bias_proxy"] = float(bias_proxy)
+                    metrics["bias_level"] = "High" if bias_proxy > 0.08 else "Moderate" if bias_proxy > 0.03 else "Low"
+                else:
+                    metrics["bias_proxy"] = None
+                    metrics["bias_level"] = "Unknown"
+
+                if cv_std is not None:
+                    variance_proxy = max(0.0, float(cv_std))
+                    metrics["variance_proxy"] = float(variance_proxy)
+                    metrics["variance_level"] = "High" if variance_proxy > 0.08 else "Moderate" if variance_proxy > 0.03 else "Low"
+                else:
+                    metrics["variance_proxy"] = None
+                    metrics["variance_level"] = "Unknown"
                 
                 # Feature importance
                 feature_importance = self._get_feature_importance(model, feature_names)
@@ -492,7 +696,8 @@ class MLEngine:
                     "category": category,
                     **metrics,
                     "training_time": round(train_time, 3),
-                    "feature_importance": feature_importance[:10] if feature_importance else []
+                    "feature_importance": feature_importance[:10] if feature_importance else [],
+                    "tuning": tuning_info,
                 }
                 
                 results.append(result)

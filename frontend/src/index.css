@@ -8,13 +8,17 @@
     --bg-base: #f3f6f9;
     --bg-accent: #eef6ff;
     --surface: rgba(255, 255, 255, 0.8);
-    --surface-strong: rgba(255, 255, 255, 0.92);
+    --surface-strong: rgba(255, 255, 255, 0.94);
     --text-main: #122035;
     --text-muted: #4d5a70;
     --brand-1: #0f7b6c;
     --brand-2: #1f4fa3;
     --brand-warm: #e7792b;
     --border-soft: rgba(18, 32, 53, 0.1);
+    --radius-xl: 18px;
+    --radius-md: 12px;
+    --shadow-soft: 0 8px 24px rgba(15, 30, 52, 0.08);
+    --shadow-hover: 0 16px 34px rgba(15, 30, 52, 0.14);
 }
 
 * {
@@ -35,6 +39,8 @@ body {
         radial-gradient(1400px 680px at -8% -16%, #d7e8ff 0%, transparent 60%),
         radial-gradient(900px 500px at 108% 6%, #ffe8d6 0%, transparent 60%),
         linear-gradient(180deg, var(--bg-accent) 0%, var(--bg-base) 100%);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
 }
 
 #root {
@@ -57,12 +63,19 @@ body {
 .btn-primary {
     @apply text-white px-5 py-2.5 rounded-xl font-semibold transition-all duration-200;
     background: linear-gradient(100deg, #0f7b6c 0%, #1f4fa3 65%, #e7792b 100%);
-    box-shadow: 0 10px 24px rgba(21, 58, 96, 0.26);
+    box-shadow: 0 10px 24px rgba(21, 58, 96, 0.24);
 }
 
 .btn-primary:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 14px 28px rgba(21, 58, 96, 0.3);
+    transform: translateY(-1px) scale(1.01);
+    box-shadow: 0 14px 30px rgba(21, 58, 96, 0.32);
+}
+
+.btn-primary:focus-visible,
+.btn-secondary:focus-visible,
+.input-field:focus-visible {
+    outline: 2px solid rgba(31, 79, 163, 0.35);
+    outline-offset: 2px;
 }
 
 .btn-secondary {
@@ -75,21 +88,85 @@ body {
     background: #f8fbff;
 }
 
+.btn-danger {
+    @apply text-white px-5 py-2.5 rounded-xl font-semibold transition-all duration-200;
+    background: linear-gradient(100deg, #b4232a 0%, #dd5f2c 100%);
+    box-shadow: 0 10px 22px rgba(172, 42, 35, 0.22);
+}
+
+.btn-danger:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 12px 26px rgba(172, 42, 35, 0.3);
+}
+
+.section-title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 1.08rem;
+    font-weight: 700;
+    color: #182433;
+    letter-spacing: 0.01em;
+}
+
+.section-note {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+}
+
+.chip-soft {
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    background: rgba(255, 255, 255, 0.16);
+    padding: 0.26rem 0.7rem;
+}
+
 .card {
     @apply rounded-2xl p-6 transition-all duration-300;
-    background: var(--surface-strong);
+    border-radius: var(--radius-xl);
+    background-color: var(--surface-strong);
     border: 1px solid var(--border-soft);
-    box-shadow: 0 8px 24px rgba(15, 30, 52, 0.08);
+    box-shadow: var(--shadow-soft);
 }
 
 .card:hover {
-    box-shadow: 0 12px 30px rgba(15, 30, 52, 0.12);
+    box-shadow: var(--shadow-hover);
+}
+
+.hero-contrast {
+    position: relative;
+    isolation: isolate;
+}
+
+.hero-contrast::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0.14) 0%, rgba(0, 0, 0, 0.28) 100%);
+    pointer-events: none;
+    z-index: 0;
+}
+
+.hero-contrast>* {
+    position: relative;
+    z-index: 1;
 }
 
 .input-field {
     @apply w-full px-4 py-3 rounded-xl outline-none transition-all duration-200;
+    min-height: 48px;
+    font-weight: 500;
     border: 1px solid rgba(15, 41, 75, 0.18);
-    background: rgba(255, 255, 255, 0.85);
+    background: rgba(255, 255, 255, 0.92);
+    color: var(--text-main);
+}
+
+.input-field::placeholder {
+    color: #7a889a;
+    opacity: 1;
+}
+
+.input-field option {
+    color: var(--text-main);
+    background-color: #ffffff;
 }
 
 .input-field:focus {
@@ -98,9 +175,10 @@ body {
 }
 
 .surface-panel {
-    background: var(--surface);
+    background: rgba(255, 255, 255, 0.84);
     border: 1px solid var(--border-soft);
-    box-shadow: 0 8px 26px rgba(20, 31, 52, 0.08);
+    box-shadow: 0 10px 28px rgba(20, 31, 52, 0.08);
+    backdrop-filter: blur(12px);
 }
 
 .title-display {
@@ -190,4 +268,22 @@ body {
 
 .route-transition {
     animation: routeIn 0.32s ease both;
+}
+
+*::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+    background: rgba(15, 41, 75, 0.06);
+}
+
+*::-webkit-scrollbar-thumb {
+    background: rgba(31, 79, 163, 0.35);
+    border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+    background: rgba(31, 79, 163, 0.5);
 }

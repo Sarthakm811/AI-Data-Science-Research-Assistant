@@ -1,16 +1,18 @@
-import React, { useEffect, useState } from 'react'
+import React, { Suspense, lazy, useEffect, useState } from 'react'
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom'
 import Sidebar from './components/Sidebar'
 import Header from './components/Header'
-import Dashboard from './pages/Dashboard'
-import DatasetSearch from './pages/DatasetSearch'
-import AutoEDA from './pages/AutoEDA'
-import AutoML from './pages/AutoML'
-import AIChat from './pages/AIChat'
-import Reports from './pages/Reports'
-import AnomalyDetection from './pages/AnomalyDetection'
-import TimeSeries from './pages/TimeSeries'
 import { AnalysisProvider } from './context/AnalysisContext'
+
+const Dashboard = lazy(() => import('./pages/Dashboard'))
+const DatasetSearch = lazy(() => import('./pages/DatasetSearch'))
+const DataCleaning = lazy(() => import('./pages/DataCleaning'))
+const FeatureEngineering = lazy(() => import('./pages/FeatureEngineering'))
+const AutoEDA = lazy(() => import('./pages/AutoEDA'))
+const AutoML = lazy(() => import('./pages/AutoML'))
+const StatisticsMath = lazy(() => import('./pages/StatisticsMath'))
+const AIChat = lazy(() => import('./pages/AIChat'))
+const Reports = lazy(() => import('./pages/Reports'))
 
 function AppLayout({ dataset, setDataset, isMobile, sidebarOpen, setSidebarOpen }) {
     const location = useLocation()
@@ -37,16 +39,25 @@ function AppLayout({ dataset, setDataset, isMobile, sidebarOpen, setSidebarOpen 
 
                 <main className="relative z-10 flex-1 overflow-auto p-4 md:p-6">
                     <div key={location.pathname} className="route-transition">
-                        <Routes>
-                            <Route path="/" element={<Dashboard dataset={dataset} />} />
-                            <Route path="/search" element={<DatasetSearch setDataset={setDataset} />} />
-                            <Route path="/eda" element={<AutoEDA dataset={dataset} />} />
-                            <Route path="/ml" element={<AutoML dataset={dataset} />} />
-                            <Route path="/anomaly" element={<AnomalyDetection dataset={dataset} />} />
-                            <Route path="/timeseries" element={<TimeSeries dataset={dataset} />} />
-                            <Route path="/chat" element={<AIChat dataset={dataset} />} />
-                            <Route path="/reports" element={<Reports dataset={dataset} />} />
-                        </Routes>
+                        <Suspense
+                            fallback={(
+                                <div className="card py-12 text-center text-slate-500">
+                                    Loading page...
+                                </div>
+                            )}
+                        >
+                            <Routes>
+                                <Route path="/" element={<Dashboard dataset={dataset} />} />
+                                <Route path="/search" element={<DatasetSearch setDataset={setDataset} />} />
+                                <Route path="/cleaning" element={<DataCleaning dataset={dataset} setDataset={setDataset} />} />
+                                <Route path="/features" element={<FeatureEngineering dataset={dataset} setDataset={setDataset} />} />
+                                <Route path="/eda" element={<AutoEDA dataset={dataset} />} />
+                                <Route path="/ml" element={<AutoML dataset={dataset} setDataset={setDataset} />} />
+                                <Route path="/statistics" element={<StatisticsMath dataset={dataset} />} />
+                                <Route path="/chat" element={<AIChat dataset={dataset} />} />
+                                <Route path="/reports" element={<Reports dataset={dataset} />} />
+                            </Routes>
+                        </Suspense>
                     </div>
                 </main>
             </div>

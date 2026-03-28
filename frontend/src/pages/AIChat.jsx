@@ -72,7 +72,7 @@ function AIChat({ dataset }) {
     return (
         <div className="fade-up flex h-[calc(100vh-200px)] flex-col">
             {/* Header */}
-            <div className="card lift-hover mb-4 bg-gradient-to-r from-blue-800 via-teal-700 to-orange-600 text-white">
+            <div className="card hero-contrast lift-hover mb-4 bg-gradient-to-r from-blue-800 via-teal-700 to-orange-600 text-white">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <div className="rounded-lg bg-white/20 p-3">

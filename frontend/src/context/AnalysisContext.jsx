@@ -5,19 +5,16 @@ const AnalysisContext = createContext()
 export function AnalysisProvider({ children }) {
     const [ edaResults, setEdaResults ] = useState(null)
     const [ mlResults, setMlResults ] = useState(null)
-    const [ anomalyResults, setAnomalyResults ] = useState(null)
-    const [ timeSeriesResults, setTimeSeriesResults ] = useState(null)
+    const [ statsMathResults, setStatsMathResults ] = useState(null)
 
     const value = {
         edaResults,
         setEdaResults,
         mlResults,
         setMlResults,
-        anomalyResults,
-        setAnomalyResults,
-        timeSeriesResults,
-        setTimeSeriesResults,
-        hasResults: !!(edaResults || mlResults || anomalyResults || timeSeriesResults)
+        statsMathResults,
+        setStatsMathResults,
+        hasResults: !!(edaResults || mlResults || statsMathResults)
     }
 
     return (

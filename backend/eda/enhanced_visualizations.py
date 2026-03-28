@@ -658,50 +658,6 @@ class EnhancedVisualizer:
 
         return fig
 
-    # ==================== TIME SERIES VISUALIZATIONS ====================
-
-    def create_time_series_plot(self, date_col: str, value_col: str) -> go.Figure:
-        """Time series line plot with rolling average"""
-        df_sorted = self.df[[date_col, value_col]].dropna().sort_values(date_col)
-
-        fig = go.Figure()
-
-        # Original line
-        fig.add_trace(
-            go.Scatter(
-                x=df_sorted[date_col],
-                y=df_sorted[value_col],
-                mode="lines",
-                name="Original",
-                line=dict(color="lightblue", width=1),
-            )
-        )
-
-        # Rolling average (if enough data)
-        if len(df_sorted) > 30:
-            window = min(30, len(df_sorted) // 10)
-            rolling_mean = df_sorted[value_col].rolling(window=window).mean()
-
-            fig.add_trace(
-                go.Scatter(
-                    x=df_sorted[date_col],
-                    y=rolling_mean,
-                    mode="lines",
-                    name=f"{window}-period MA",
-                    line=dict(color="red", width=2),
-                )
-            )
-
-        fig.update_layout(
-            title=f"Time Series: {value_col} over {date_col}",
-            xaxis_title=date_col,
-            yaxis_title=value_col,
-            height=500,
-            hovermode="x unified",
-        )
-
-        return fig
-
     # ==================== MULTIVARIATE VISUALIZATIONS ====================
 
     def create_scatter_matrix(self, max_cols: int = 6) -> go.Figure:

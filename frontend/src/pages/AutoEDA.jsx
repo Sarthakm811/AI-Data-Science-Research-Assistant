@@ -1,7 +1,8 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { BarChart3, PieChart, TrendingUp, AlertCircle, CheckCircle, Activity, Zap, Target, Eye, Lightbulb, ArrowUp, ArrowDown, Minus, Filter, Download, RefreshCw } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartsPie, Pie, Cell, LineChart, Line, ScatterChart, Scatter, AreaChart, Area, RadialBarChart, RadialBar, Legend, ComposedChart } from 'recharts'
 import { useAnalysis } from '../context/AnalysisContext'
+import { chatAPI, queryAPI, sessionAPI, handleApiError } from '../services/api'
 
 const COLORS = [ '#8b5cf6', '#ec4899', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#06b6d4', '#84cc16', '#f97316', '#6366f1' ]
 
@@ -23,13 +24,172 @@ const METRIC_BAR_CLASS = {
     pink: 'bg-pink-500'
 }
 
+function clampPercent(value) {
+    if (!Number.isFinite(value)) return 0
+    return Math.max(0, Math.min(100, value))
+}
+
+function heatColor(value, type = 'correlation') {
+    const v = Number(value)
+    if (!Number.isFinite(v)) return '#e5e7eb'
+
+    if (type === 'missing') {
+        const intensity = Math.round(255 - clampPercent(v) * 1.8)
+        return `rgb(255, ${intensity}, 140)`
+    }
+
+    const abs = Math.abs(v)
+    if (v >= 0) {
+        const green = Math.round(220 - abs * 120)
+        return `rgb(16, ${green}, 129)`
+    }
+    const red = Math.round(220 - abs * 120)
+    return `rgb(${red}, 68, 68)`
+}
+
+function createBusinessAnswer(question, results) {
+    const q = String(question || '').trim().toLowerCase()
+    if (!q || !results) return ''
+
+    const topMissing = [ ...results.missingData ]
+        .sort((a, b) => b.percentage - a.percentage)
+        .slice(0, 3)
+    const topCorr = [ ...results.correlations ]
+        .sort((a, b) => Math.abs(b.correlation) - Math.abs(a.correlation))[ 0 ]
+    const topOutlier = [ ...results.statistics ]
+        .sort((a, b) => b.outlierCount - a.outlierCount)[ 0 ]
+    const topSkew = [ ...results.statistics ]
+        .sort((a, b) => Math.abs(parseFloat(b.skewness)) - Math.abs(parseFloat(a.skewness)))[ 0 ]
+
+    if (q.includes('missing')) {
+        if (!topMissing.length || topMissing[ 0 ].missing === 0) {
+            return 'No major missing-value risk found. Missing data is negligible across columns.'
+        }
+        return `Most missing data appears in ${topMissing.map((m) => `${m.name} (${m.percentage.toFixed(1)}%)`).join(', ')}.`
+    }
+
+    if (q.includes('correlation') || q.includes('related') || q.includes('impact')) {
+        if (!topCorr) return 'Not enough numeric columns to evaluate variable relationships.'
+        return `Strongest relationship: ${topCorr.feature1} vs ${topCorr.feature2} with ${topCorr.correlation.toFixed(3)} correlation (${topCorr.direction.toLowerCase()}).`
+    }
+
+    if (q.includes('outlier') || q.includes('anomal')) {
+        if (!topOutlier || topOutlier.outlierCount === 0) {
+            return 'No significant outlier concentration detected in numeric features.'
+        }
+        return `Highest outlier concentration is in ${topOutlier.name} (${topOutlier.outlierCount} values, ${topOutlier.outlierPercentage}%).`
+    }
+
+    if (q.includes('quality')) {
+        return `Current quality score is ${results.qualityScore}/100 with ${results.summary.missingTotal} missing cells and ${results.summary.outlierTotal} detected outliers.`
+    }
+
+    if (q.includes('distribution') || q.includes('skew')) {
+        if (!topSkew) return 'No distribution evidence available.'
+        return `${topSkew.name} is most skewed (skewness ${topSkew.skewness}), suggesting possible transformation before modeling.`
+    }
+
+    return `Summary: quality ${results.qualityScore}/100, strongest correlation ${topCorr ? `${topCorr.feature1}↔${topCorr.feature2} (${topCorr.correlation.toFixed(3)})` : 'N/A'}, top outlier column ${topOutlier ? topOutlier.name : 'N/A'}.`
+}
+
+function evaluateHypothesis(statement, feature1, feature2, results) {
+    const text = String(statement || '').trim()
+    if (!text) return { status: 'invalid', message: 'Hypothesis statement is required.' }
+    if (!results) return { status: 'invalid', message: 'Run analysis first.' }
+
+    if (feature1 && feature2) {
+        const pair = results.correlations.find((c) => (
+            (c.feature1 === feature1 && c.feature2 === feature2) ||
+            (c.feature1 === feature2 && c.feature2 === feature1)
+        ))
+        if (!pair) {
+            return {
+                status: 'insufficient',
+                message: `No correlation evidence available between ${feature1} and ${feature2}.`
+            }
+        }
+
+        const abs = Math.abs(pair.correlation)
+        if (abs >= 0.5) {
+            return {
+                status: 'supported',
+                message: `Hypothesis has support: ${feature1} and ${feature2} show ${pair.correlation.toFixed(3)} correlation (${pair.strength.toLowerCase()}).`
+            }
+        }
+        return {
+            status: 'weak',
+            message: `Evidence is weak: correlation between ${feature1} and ${feature2} is ${pair.correlation.toFixed(3)}.`
+        }
+    }
+
+    const quality = results.qualityScore
+    return quality >= 75
+        ? { status: 'supported', message: `Dataset quality (${quality}/100) is strong enough to explore this hypothesis further.` }
+        : { status: 'weak', message: `Dataset quality (${quality}/100) suggests cleaning/improvement before testing this hypothesis.` }
+}
+
+function scoreBusinessAnswerConfidence(question, results) {
+    if (!results) return { label: 'Low', score: 35, tone: 'red' }
+
+    const q = String(question || '').trim().toLowerCase()
+    const hasCorrelations = Array.isArray(results.correlations) && results.correlations.length > 0
+    const hasMissing = Array.isArray(results.missingData) && results.missingData.length > 0
+    const hasStats = Array.isArray(results.statistics) && results.statistics.length > 0
+
+    if (q.includes('correlation') || q.includes('related') || q.includes('impact')) {
+        const strong = results.correlations.filter((c) => Math.abs(c.correlation) >= 0.5).length
+        if (strong > 0) return { label: 'High', score: 88, tone: 'green' }
+        if (hasCorrelations) return { label: 'Medium', score: 68, tone: 'yellow' }
+        return { label: 'Low', score: 40, tone: 'red' }
+    }
+
+    if (q.includes('missing') || q.includes('quality') || q.includes('outlier') || q.includes('distribution') || q.includes('skew')) {
+        if (hasMissing && hasStats) return { label: 'High', score: 84, tone: 'green' }
+        if (hasMissing || hasStats) return { label: 'Medium', score: 64, tone: 'yellow' }
+        return { label: 'Low', score: 42, tone: 'red' }
+    }
+
+    if (hasCorrelations && hasMissing && hasStats) return { label: 'Medium', score: 72, tone: 'yellow' }
+    return { label: 'Low', score: 48, tone: 'red' }
+}
+
 function AutoEDA({ dataset }) {
     const [ analyzing, setAnalyzing ] = useState(false)
     const [ results, setResults ] = useState(null)
     const [ activeTab, setActiveTab ] = useState('dashboard')
     const [ selectedColumn, setSelectedColumn ] = useState(null)
     const [ filterOutliers, setFilterOutliers ] = useState(false)
+    const [ businessQuestion, setBusinessQuestion ] = useState('')
+    const [ businessAnswer, setBusinessAnswer ] = useState('')
+    const [ businessConfidence, setBusinessConfidence ] = useState(null)
+    const [ qaLoading, setQaLoading ] = useState(false)
+    const [ qaError, setQaError ] = useState('')
+    const [ qaSessionId, setQaSessionId ] = useState(null)
+    const [ hypothesisText, setHypothesisText ] = useState('')
+    const [ hypothesisFeature1, setHypothesisFeature1 ] = useState('')
+    const [ hypothesisFeature2, setHypothesisFeature2 ] = useState('')
+    const [ hypothesisResult, setHypothesisResult ] = useState(null)
     const { setEdaResults } = useAnalysis()
+
+    useEffect(() => {
+        let isMounted = true
+
+        const initQaSession = async () => {
+            try {
+                const session = await sessionAPI.createSession()
+                if (isMounted && session?.session_id) {
+                    setQaSessionId(session.session_id)
+                }
+            } catch (_err) {
+                // Optional session setup; fallback session id is used if this fails.
+            }
+        }
+
+        initQaSession()
+        return () => {
+            isMounted = false
+        }
+    }, [])
 
     const runAnalysis = () => {
         if (!dataset) return
@@ -112,6 +272,28 @@ function AutoEDA({ dataset }) {
                 }
             }
 
+            const correlationHeatmap = {
+                labels: numericCols,
+                values: numericCols.map((colA) => (
+                    numericCols.map((colB) => {
+                        if (colA === colB) return 1
+                        const found = correlations.find((c) => (
+                            (c.feature1 === colA && c.feature2 === colB) ||
+                            (c.feature1 === colB && c.feature2 === colA)
+                        ))
+                        return found ? found.correlation : 0
+                    })
+                ))
+            }
+
+            const missingHeatmap = {
+                labels: dataset.headers,
+                rowLabels: dataset.rows.slice(0, 40).map((_, idx) => idx + 1),
+                values: dataset.rows.slice(0, 40).map((row) => (
+                    dataset.headers.map((h) => ((!row[ h ] || row[ h ] === '') ? 100 : 0))
+                ))
+            }
+
             // Categorical analysis
             const categoricalAnalysis = categoricalCols.map(col => {
                 const valueCounts = {}
@@ -161,12 +343,69 @@ function AutoEDA({ dataset }) {
             const analysisResults = {
                 summary: { rows: dataset.rowCount, columns: dataset.colCount, numericCols: numericCols.length, categoricalCols: categoricalCols.length, missingTotal: missingData.reduce((a, b) => a + b.missing, 0), duplicateRows: dataset.rowCount - duplicateRows, outlierTotal },
                 missingData, statistics, correlations, categoricalAnalysis, qualityScore, insights, qualityRadar,
-                typeCount: [ { name: 'Numeric', value: numericCols.length }, { name: 'Categorical', value: categoricalCols.length } ]
+                typeCount: [ { name: 'Numeric', value: numericCols.length }, { name: 'Categorical', value: categoricalCols.length } ],
+                numericColumns: numericCols,
+                correlationHeatmap,
+                missingHeatmap
             }
             setResults(analysisResults)
             setEdaResults(analysisResults) // Save to global context for reports
+            setBusinessAnswer('')
+            setBusinessConfidence(null)
+            setHypothesisResult(null)
             setAnalyzing(false)
         }, 2000)
+    }
+
+    const handleBusinessQuestion = async () => {
+        const question = String(businessQuestion || '').trim()
+        if (!question) return
+
+        setQaError('')
+        setQaLoading(true)
+
+        const localAnswer = createBusinessAnswer(question, results)
+        const confidence = scoreBusinessAnswerConfidence(question, results)
+        const datasetId = dataset?.id || dataset?.datasetId || null
+
+        try {
+            let backendAnswer = ''
+
+            try {
+                const enhanced = await queryAPI.enhancedQuery(
+                    qaSessionId || 'eda-business',
+                    question,
+                    datasetId,
+                    true,
+                    false
+                )
+                backendAnswer = enhanced?.explanation || enhanced?.response || enhanced?.message || ''
+            } catch (_enhancedErr) {
+                const chatFallback = await chatAPI.sendMessage(
+                    `Provide a concise business-focused interpretation for this question: ${question}`,
+                    datasetId,
+                    qaSessionId || 'eda-business'
+                )
+                backendAnswer = chatFallback?.response || chatFallback?.message || ''
+            }
+
+            if (backendAnswer && localAnswer) {
+                setBusinessAnswer(`${backendAnswer}\n\nEvidence from current EDA:\n${localAnswer}`)
+            } else {
+                setBusinessAnswer(backendAnswer || localAnswer || 'No answer could be generated for this question.')
+            }
+            setBusinessConfidence(confidence)
+        } catch (err) {
+            setQaError(handleApiError(err))
+            setBusinessAnswer(localAnswer || 'Unable to generate an answer right now. Please retry after running analysis.')
+            setBusinessConfidence(confidence)
+        } finally {
+            setQaLoading(false)
+        }
+    }
+
+    const handleHypothesisCheck = () => {
+        setHypothesisResult(evaluateHypothesis(hypothesisText, hypothesisFeature1, hypothesisFeature2, results))
     }
 
     // Memoized filtered data
@@ -195,13 +434,14 @@ function AutoEDA({ dataset }) {
         { id: 'insights', label: 'AI Insights', icon: Lightbulb },
         { id: 'distributions', label: 'Distributions', icon: BarChart3 },
         { id: 'correlations', label: 'Correlations', icon: TrendingUp },
-        { id: 'quality', label: 'Data Quality', icon: CheckCircle }
+        { id: 'quality', label: 'Data Quality', icon: CheckCircle },
+        { id: 'business', label: 'Business Q&A', icon: Target }
     ]
 
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div className="card bg-gradient-to-r from-blue-800 via-teal-700 to-orange-600 text-white">
+            <div className="card hero-contrast bg-gradient-to-r from-blue-800 via-teal-700 to-orange-600 text-white">
                 <div className="flex items-center justify-between">
                     <div>
                         <h1 className="title-display mb-1 text-2xl font-bold">Interactive EDA Dashboard</h1>
@@ -214,14 +454,14 @@ function AutoEDA({ dataset }) {
                                 <p className="text-2xl font-bold">{results.qualityScore}/100</p>
                             </div>
                         )}
-                        <button onClick={runAnalysis} disabled={analyzing} className="flex items-center gap-2 rounded-lg bg-white px-6 py-3 font-semibold text-blue-700 transition hover:bg-blue-50">
+                        <button onClick={runAnalysis} disabled={analyzing} className="btn-secondary flex items-center gap-2 border-white/40 bg-white text-blue-700 hover:bg-white/90">
                             {analyzing ? <RefreshCw size={18} className="animate-spin" /> : <Zap size={18} />}
                             {analyzing ? 'Analyzing...' : 'Run Analysis'}
                         </button>
                     </div>
                 </div>
                 <div className="mt-4 flex gap-6 text-sm">
-                    <span className="bg-white/20 px-3 py-1 rounded-full">{dataset.name}</span>
+                    <span className="chip-soft">{dataset.name}</span>
                     <span>{dataset.rowCount.toLocaleString()} rows</span>
                     <span>{dataset.colCount} columns</span>
                 </div>
@@ -258,7 +498,7 @@ function AutoEDA({ dataset }) {
                         {tabs.map(tab => {
                             const Icon = tab.icon
                             return (
-                                <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex items-center gap-2 px-5 py-3 rounded-xl whitespace-nowrap transition-all ${activeTab === tab.id ? 'bg-purple-600 text-white shadow-lg scale-105' : 'bg-white text-gray-600 hover:bg-purple-50 hover:text-purple-600'}`}>
+                                <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex items-center gap-2 px-5 py-3 rounded-xl whitespace-nowrap transition-all ${activeTab === tab.id ? 'bg-slate-900 text-white shadow-md' : 'surface-panel text-slate-700 hover:bg-white hover:text-slate-900'}`}>
                                     <Icon size={18} />
                                     {tab.label}
                                 </button>
@@ -293,8 +533,8 @@ function AutoEDA({ dataset }) {
                                 {/* Column Selector & Stats */}
                                 <div className="card">
                                     <div className="flex items-center justify-between mb-4">
-                                        <h3 className="text-lg font-semibold">Column Explorer</h3>
-                                        <select value={selectedColumn || ''} onChange={(e) => setSelectedColumn(e.target.value)} className="px-3 py-2 border rounded-lg text-sm">
+                                        <h3 className="section-title">Column Explorer</h3>
+                                        <select value={selectedColumn || ''} onChange={(e) => setSelectedColumn(e.target.value)} className="input-field min-h-0 px-3 py-2 text-sm">
                                             <option value="">Select column...</option>
                                             {results.statistics.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
                                         </select>
@@ -332,7 +572,7 @@ function AutoEDA({ dataset }) {
 
                                 {/* Top Correlations */}
                                 <div className="card">
-                                    <h3 className="text-lg font-semibold mb-4">Top Correlations</h3>
+                                    <h3 className="section-title mb-4">Top Correlations</h3>
                                     <div className="space-y-3">
                                         {results.correlations.sort((a, b) => Math.abs(b.correlation) - Math.abs(a.correlation)).slice(0, 5).map((c, i) => (
                                             <div key={i} className="flex items-center gap-3">
@@ -355,7 +595,7 @@ function AutoEDA({ dataset }) {
                             {/* Missing Data & Types */}
                             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                                 <div className="card lg:col-span-2">
-                                    <h3 className="text-lg font-semibold mb-4">Missing Data Heatmap</h3>
+                                    <h3 className="section-title mb-4">Missing Data Heatmap</h3>
                                     <ResponsiveContainer width="100%" height={200}>
                                         <BarChart data={results.missingData} layout="vertical">
                                             <CartesianGrid strokeDasharray="3 3" /><XAxis type="number" domain={[ 0, 100 ]} /><YAxis dataKey="name" type="category" width={100} tick={{ fontSize: 11 }} /><Tooltip formatter={(v) => `${v.toFixed(1)}%`} /><Bar dataKey="percentage" fill="#f59e0b" radius={[ 0, 4, 4, 0 ]} />
@@ -363,7 +603,7 @@ function AutoEDA({ dataset }) {
                                     </ResponsiveContainer>
                                 </div>
                                 <div className="card">
-                                    <h3 className="text-lg font-semibold mb-4">Data Types</h3>
+                                    <h3 className="section-title mb-4">Data Types</h3>
                                     <ResponsiveContainer width="100%" height={200}>
                                         <RechartsPie>
                                             <Pie data={results.typeCount} cx="50%" cy="50%" innerRadius={40} outerRadius={70} paddingAngle={5} dataKey="value" label={({ name, value }) => `${name}: ${value}`}>
@@ -378,7 +618,7 @@ function AutoEDA({ dataset }) {
                             {/* Statistics Table */}
                             <div className="card">
                                 <div className="flex items-center justify-between mb-4">
-                                    <h3 className="text-lg font-semibold">Numeric Statistics</h3>
+                                    <h3 className="section-title">Numeric Statistics</h3>
                                     <label className="flex items-center gap-2 text-sm cursor-pointer">
                                         <input type="checkbox" checked={filterOutliers} onChange={(e) => setFilterOutliers(e.target.checked)} className="rounded" />
                                         <Filter size={14} /> Hide Outliers
@@ -428,7 +668,7 @@ function AutoEDA({ dataset }) {
 
                             {/* Recommendations */}
                             <div className="card">
-                                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2"><Lightbulb className="text-yellow-500" /> Smart Recommendations</h3>
+                                <h3 className="section-title mb-4 flex items-center gap-2"><Lightbulb className="text-yellow-500" /> Smart Recommendations</h3>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     {[
                                         { title: 'Handle Missing Values', desc: results.summary.missingTotal > 0 ? `${results.summary.missingTotal} missing values detected. Consider imputation.` : 'No missing values - great!', status: results.summary.missingTotal === 0 },
@@ -468,6 +708,35 @@ function AutoEDA({ dataset }) {
                                             <span>Mean: {stat.mean.toFixed(2)}</span>
                                             <span>Max: {stat.max.toFixed(2)}</span>
                                         </div>
+
+                                        <div className="mt-4">
+                                            <p className="mb-2 text-xs font-semibold text-slate-600">Boxplot View</p>
+                                            <div className="relative h-8 rounded bg-slate-100">
+                                                <div className="absolute top-1/2 h-0.5 bg-slate-400" style={{ left: '0%', width: '100%', transform: 'translateY(-50%)' }} />
+                                                <div
+                                                    className="absolute top-1/2 h-4 -translate-y-1/2 rounded bg-blue-300/80"
+                                                    style={{
+                                                        left: `${clampPercent(((stat.q1 - stat.min) / ((stat.max - stat.min) || 1)) * 100)}%`,
+                                                        width: `${clampPercent(((stat.q3 - stat.q1) / ((stat.max - stat.min) || 1)) * 100)}%`
+                                                    }}
+                                                />
+                                                <div
+                                                    className="absolute top-1/2 h-5 w-0.5 -translate-y-1/2 bg-blue-900"
+                                                    style={{ left: `${clampPercent(((stat.median - stat.min) / ((stat.max - stat.min) || 1)) * 100)}%` }}
+                                                />
+                                                <div
+                                                    className="absolute top-1/2 h-4 w-0.5 -translate-y-1/2 bg-slate-700"
+                                                    style={{ left: `${clampPercent(((stat.min - stat.min) / ((stat.max - stat.min) || 1)) * 100)}%` }}
+                                                />
+                                                <div
+                                                    className="absolute top-1/2 h-4 w-0.5 -translate-y-1/2 bg-slate-700"
+                                                    style={{ left: `${clampPercent(((stat.max - stat.min) / ((stat.max - stat.min) || 1)) * 100)}%` }}
+                                                />
+                                            </div>
+                                            <div className="mt-1 flex justify-between text-[10px] text-slate-500">
+                                                <span>Min</span><span>Q1</span><span>Median</span><span>Q3</span><span>Max</span>
+                                            </div>
+                                        </div>
                                     </div>
                                 ))}
                             </div>
@@ -477,6 +746,37 @@ function AutoEDA({ dataset }) {
                     {/* Correlations Tab */}
                     {activeTab === 'correlations' && (
                         <div className="space-y-6">
+                            <div className="card">
+                                <h3 className="section-title mb-4">Correlation Heatmap</h3>
+                                {results.correlationHeatmap.labels.length > 1 ? (
+                                    <div className="overflow-auto">
+                                        <div className="inline-grid gap-1" style={{ gridTemplateColumns: `120px repeat(${results.correlationHeatmap.labels.length}, minmax(56px, 56px))` }}>
+                                            <div className="bg-white" />
+                                            {results.correlationHeatmap.labels.map((label) => (
+                                                <div key={`hx-${label}`} className="text-[10px] font-semibold text-slate-600 text-center truncate" title={label}>{label}</div>
+                                            ))}
+                                            {results.correlationHeatmap.labels.map((rowLabel, rIdx) => (
+                                                <React.Fragment key={`row-${rowLabel}`}>
+                                                    <div className="text-[10px] font-semibold text-slate-600 truncate pr-2" title={rowLabel}>{rowLabel}</div>
+                                                    {results.correlationHeatmap.values[ rIdx ].map((value, cIdx) => (
+                                                        <div
+                                                            key={`cell-${rIdx}-${cIdx}`}
+                                                            className="h-7 w-14 rounded text-center text-[10px] leading-7 font-semibold text-white"
+                                                            style={{ backgroundColor: heatColor(value, 'correlation') }}
+                                                            title={`${rowLabel} vs ${results.correlationHeatmap.labels[ cIdx ]}: ${value.toFixed(3)}`}
+                                                        >
+                                                            {value.toFixed(2)}
+                                                        </div>
+                                                    ))}
+                                                </React.Fragment>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <p className="text-sm text-slate-500">Need at least 2 numeric columns for a correlation heatmap.</p>
+                                )}
+                            </div>
+
                             {/* Correlation Matrix */}
                             <div className="card">
                                 <h3 className="text-lg font-semibold mb-4">Correlation Analysis</h3>
@@ -631,6 +931,32 @@ function AutoEDA({ dataset }) {
                                 </div>
                             </div>
 
+                            <div className="card">
+                                <h3 className="text-lg font-semibold mb-4">True Missingness Heatmap (Row x Column)</h3>
+                                <p className="mb-3 text-xs text-slate-500">First {results.missingHeatmap.rowLabels.length} rows shown. Darker cells indicate missing values.</p>
+                                <div className="overflow-auto">
+                                    <div className="inline-grid gap-1" style={{ gridTemplateColumns: `70px repeat(${results.missingHeatmap.labels.length}, minmax(56px, 56px))` }}>
+                                        <div className="bg-white" />
+                                        {results.missingHeatmap.labels.map((label) => (
+                                            <div key={`mx-${label}`} className="text-[10px] font-semibold text-slate-600 text-center truncate" title={label}>{label}</div>
+                                        ))}
+                                        {results.missingHeatmap.rowLabels.map((rowId, rIdx) => (
+                                            <React.Fragment key={`mrow-${rowId}`}>
+                                                <div className="text-[10px] text-slate-500">Row {rowId}</div>
+                                                {results.missingHeatmap.values[ rIdx ].map((value, cIdx) => (
+                                                    <div
+                                                        key={`mcell-${rIdx}-${cIdx}`}
+                                                        className="h-5 w-14 rounded"
+                                                        style={{ backgroundColor: heatColor(value, 'missing') }}
+                                                        title={`${results.missingHeatmap.labels[ cIdx ]}: ${value > 0 ? 'Missing' : 'Present'}`}
+                                                    />
+                                                ))}
+                                            </React.Fragment>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+
                             {/* Categorical Analysis */}
                             {results.categoricalAnalysis.length > 0 && (
                                 <div className="card">
@@ -660,6 +986,94 @@ function AutoEDA({ dataset }) {
                                     </div>
                                 </div>
                             )}
+                        </div>
+                    )}
+
+                    {activeTab === 'business' && (
+                        <div className="space-y-6">
+                            <div className="card">
+                                <h3 className="text-lg font-semibold mb-4">Ask Business Questions</h3>
+                                <div className="flex flex-col gap-3 md:flex-row">
+                                    <input
+                                        value={businessQuestion}
+                                        onChange={(e) => setBusinessQuestion(e.target.value)}
+                                        className="input-field flex-1"
+                                        placeholder="Example: Which variables most impact performance?"
+                                    />
+                                    <button
+                                        onClick={handleBusinessQuestion}
+                                        disabled={qaLoading || !businessQuestion.trim()}
+                                        className="rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-70"
+                                    >
+                                        {qaLoading ? 'Answering...' : 'Answer'}
+                                    </button>
+                                </div>
+                                {qaError && (
+                                    <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                                        Backend Q&A unavailable ({qaError}). Showing EDA-based fallback answer.
+                                    </div>
+                                )}
+                                {businessAnswer && (
+                                    <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
+                                        {businessConfidence && (
+                                            <div className="mb-2 flex items-center gap-2">
+                                                <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${businessConfidence.tone === 'green'
+                                                    ? 'bg-green-100 text-green-800'
+                                                    : businessConfidence.tone === 'yellow'
+                                                        ? 'bg-yellow-100 text-yellow-800'
+                                                        : 'bg-red-100 text-red-800'
+                                                    }`}>
+                                                    Confidence: {businessConfidence.label} ({businessConfidence.score}%)
+                                                </span>
+                                            </div>
+                                        )}
+                                        {businessAnswer}
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="card">
+                                <h3 className="text-lg font-semibold mb-4">Hypothesis Builder</h3>
+                                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                                    <div className="md:col-span-2">
+                                        <label className="mb-1 block text-xs font-semibold text-slate-600">Hypothesis Statement</label>
+                                        <input
+                                            value={hypothesisText}
+                                            onChange={(e) => setHypothesisText(e.target.value)}
+                                            className="input-field"
+                                            placeholder="Example: Higher marketing spend increases sales."
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="mb-1 block text-xs font-semibold text-slate-600">Feature 1 (optional)</label>
+                                        <select value={hypothesisFeature1} onChange={(e) => setHypothesisFeature1(e.target.value)} className="input-field">
+                                            <option value="">Select feature...</option>
+                                            {results.numericColumns.map((col) => <option key={`h1-${col}`} value={col}>{col}</option>)}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="mb-1 block text-xs font-semibold text-slate-600">Feature 2 (optional)</label>
+                                        <select value={hypothesisFeature2} onChange={(e) => setHypothesisFeature2(e.target.value)} className="input-field">
+                                            <option value="">Select feature...</option>
+                                            {results.numericColumns.map((col) => <option key={`h2-${col}`} value={col}>{col}</option>)}
+                                        </select>
+                                    </div>
+                                </div>
+                                <button onClick={handleHypothesisCheck} className="mt-3 rounded-lg bg-purple-600 px-4 py-2 font-semibold text-white hover:bg-purple-700">
+                                    Evaluate Hypothesis
+                                </button>
+
+                                {hypothesisResult && (
+                                    <div className={`mt-3 rounded-lg border p-3 text-sm ${hypothesisResult.status === 'supported'
+                                        ? 'border-green-200 bg-green-50 text-green-900'
+                                        : hypothesisResult.status === 'weak'
+                                            ? 'border-yellow-200 bg-yellow-50 text-yellow-900'
+                                            : 'border-red-200 bg-red-50 text-red-900'
+                                        }`}>
+                                        {hypothesisResult.message}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     )}
                 </>

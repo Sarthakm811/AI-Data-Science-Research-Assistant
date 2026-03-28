@@ -55,7 +55,7 @@ class ReportGenerator:
         report.append("5. Data Quality")
         report.append("6. Correlation Analysis")
         report.append("7. Distribution Analysis")
-        report.append("8. Anomaly Detection")
+        report.append("8. Outlier Analysis")
         report.append("9. Categorical Analysis")
         report.append("10. Machine Learning Results")
         report.append("11. Visual Assets")
@@ -186,8 +186,8 @@ class ReportGenerator:
                     report.append(f"![{title}]({asset_path.as_posix()})")
             report.append("")
 
-        # Outliers / anomalies
-        report.append("## 9. Anomaly Detection (Outliers)")
+        # Outlier analysis
+        report.append("## 9. Outlier Analysis")
         if outliers:
             report.append("| Feature | Outlier Count | Outlier % | Lower Bound | Upper Bound |")
             report.append("|---|---:|---:|---:|---:|")

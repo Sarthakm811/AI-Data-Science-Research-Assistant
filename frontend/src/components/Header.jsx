@@ -1,6 +1,8 @@
 import React, { useState, useRef } from 'react'
 import { Menu, Upload, Database, X } from 'lucide-react'
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || ''
+
 function Header({ dataset, setDataset, toggleSidebar, isMobile }) {
     const [ uploading, setUploading ] = useState(false)
     const fileInputRef = useRef(null)
@@ -11,31 +13,27 @@ function Header({ dataset, setDataset, toggleSidebar, isMobile }) {
 
         setUploading(true)
 
-        // Parse CSV file
-        const reader = new FileReader()
-        reader.onload = (event) => {
-            const text = event.target.result
-            const lines = text.split('\n')
-            const headers = lines[ 0 ].split(',').map(h => h.trim())
-            const rows = lines.slice(1).filter(line => line.trim()).map(line => {
-                const values = line.split(',')
-                const row = {}
-                headers.forEach((header, i) => {
-                    row[ header ] = values[ i ]?.trim()
-                })
-                return row
+        try {
+            const formData = new FormData()
+            formData.append('file', file)
+
+            const response = await fetch(`${API_BASE_URL}/api/dataset/upload`, {
+                method: 'POST',
+                body: formData
             })
 
-            setDataset({
-                name: file.name,
-                headers,
-                rows,
-                rowCount: rows.length,
-                colCount: headers.length
-            })
+            if (!response.ok) {
+                throw new Error('Upload failed')
+            }
+
+            const data = await response.json()
+            setDataset(data)
+        } catch (err) {
+            console.error(err)
+            window.alert('Upload failed. Please use CSV, XLSX, XLS, JPG, JPEG, or PNG.')
+        } finally {
             setUploading(false)
         }
-        reader.readAsText(file)
     }
 
     return (
@@ -45,16 +43,16 @@ function Header({ dataset, setDataset, toggleSidebar, isMobile }) {
                     <div className="flex min-w-[260px] items-center gap-3 md:gap-4">
                         <button
                             onClick={toggleSidebar}
-                            className="rounded-xl border border-slate-200 p-2 text-slate-700 transition-colors hover:bg-slate-100"
+                            className="rounded-xl border border-slate-200 bg-white/85 p-2 text-slate-700 shadow-sm transition-colors hover:bg-slate-100"
                             aria-label="Toggle sidebar"
                         >
                             <Menu size={20} />
                         </button>
                         <div>
-                            <h2 className="title-display text-lg font-semibold text-slate-900 md:text-xl">
+                            <h2 className="title-display text-lg font-bold tracking-tight text-slate-900 md:text-2xl">
                                 AI Data Science Research Assistant
                             </h2>
-                            <p className="text-xs text-slate-500 md:text-sm">
+                            <p className="text-xs font-medium text-slate-500 md:text-sm">
                                 {isMobile ? 'Mobile workspace mode' : 'Collaborative analytics workspace'}
                             </p>
                         </div>
@@ -62,7 +60,7 @@ function Header({ dataset, setDataset, toggleSidebar, isMobile }) {
 
                     <div className="flex flex-wrap items-center justify-end gap-3">
                         {dataset ? (
-                            <div className="flex max-w-full items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/90 px-3 py-2 md:px-4">
+                            <div className="flex max-w-full items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/95 px-3 py-2 shadow-sm md:px-4">
                                 <Database size={18} className="text-emerald-700" />
                                 <div className="max-w-[200px] md:max-w-[260px]">
                                     <p className="truncate text-sm font-semibold text-emerald-800">{dataset.name}</p>
@@ -77,7 +75,7 @@ function Header({ dataset, setDataset, toggleSidebar, isMobile }) {
                                 </button>
                             </div>
                         ) : (
-                            <div className="rounded-xl border border-slate-200 bg-white/70 px-3 py-2 text-sm text-slate-500">
+                            <div className="rounded-xl border border-slate-200 bg-white/85 px-3 py-2 text-sm font-medium text-slate-500 shadow-sm">
                                 No dataset loaded
                             </div>
                         )}
@@ -86,7 +84,7 @@ function Header({ dataset, setDataset, toggleSidebar, isMobile }) {
                             type="file"
                             ref={fileInputRef}
                             onChange={handleFileUpload}
-                            accept=".csv"
+                            accept=".csv,.xlsx,.xls,.jpg,.jpeg,.png"
                             className="hidden"
                         />
 
@@ -96,7 +94,7 @@ function Header({ dataset, setDataset, toggleSidebar, isMobile }) {
                             className="btn-primary flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-70"
                         >
                             <Upload size={18} />
-                            {uploading ? 'Uploading...' : 'Upload CSV'}
+                            {uploading ? 'Uploading...' : 'Upload File'}
                         </button>
                     </div>
                 </div>

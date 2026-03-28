@@ -1,12 +1,11 @@
 import React, { useState } from 'react'
-import { FileText, Download, Loader, CheckCircle, AlertCircle, BarChart3, Brain, AlertTriangle, TrendingUp, Eye, Settings, RefreshCw } from 'lucide-react'
+import { FileText, Download, Loader, CheckCircle, AlertCircle, BarChart3, Brain, Sigma, Eye, Settings, RefreshCw } from 'lucide-react'
 import { useAnalysis } from '../context/AnalysisContext'
 
 const STATUS_ICON_CLASS = {
     green: 'text-green-600',
-    purple: 'text-purple-600',
-    red: 'text-red-600',
-    cyan: 'text-cyan-600'
+    purple: 'text-blue-600',
+    cyan: 'text-cyan-700'
 }
 
 function Reports({ dataset }) {
@@ -15,12 +14,11 @@ function Reports({ dataset }) {
     const [ config, setConfig ] = useState({
         includeEDA: true,
         includeML: true,
-        includeAnomaly: true,
-        includeTimeSeries: true,
+        includeStatsMath: true,
         includeDataPreview: true
     })
 
-    const { edaResults, mlResults, anomalyResults, timeSeriesResults, hasResults } = useAnalysis()
+    const { edaResults, mlResults, statsMathResults, hasResults } = useAnalysis()
 
     const generateReport = async () => {
         if (!dataset) return
@@ -122,6 +120,12 @@ th{background:#edf3fa;color:var(--brand-2);font-weight:700}
 </div>
 <div class="content">`
 
+        const formatValue = (v, digits = 4) => {
+            if (v == null) return '-'
+            const n = Number(v)
+            return Number.isFinite(n) ? n.toFixed(digits) : String(v)
+        }
+
         html += `<h2>Table of Contents</h2>
 <div class="toc">
     <ol>
@@ -132,8 +136,7 @@ th{background:#edf3fa;color:var(--brand-2);font-weight:700}
         <li>Distribution Analysis (All Numeric Features)</li>
         <li>AI Insights</li>
         <li>Machine Learning Results</li>
-        <li>Anomaly Detection</li>
-        <li>Time Series Analysis</li>
+        <li>Statistics and Mathematics</li>
         <li>Recommendations and Next Steps</li>
     </ol>
 </div>`
@@ -352,6 +355,9 @@ new Chart(document.getElementById('corrScatter_${i}'), {
         if (config.includeML && mlResults) {
             const bestModel = mlResults.models?.[ 0 ]
             const isClassification = mlResults.taskType === 'classification'
+            const isClustering = mlResults.taskType === 'clustering'
+            const businessContext = mlResults.business_context || {}
+            const selectedMetrics = mlResults.metrics || {}
             html += `<h2>7. Machine Learning Results</h2><div class="section">
 <div class="insight insight-success"><strong>🏆 Best Model:</strong> ${bestModel?.type || bestModel?.name || 'N/A'} with ${isClassification ? (bestModel?.accuracy * 100)?.toFixed(1) + '% accuracy' : bestModel?.r2?.toFixed(4) + ' R² score'}</div>
 <div class="grid">
@@ -361,6 +367,67 @@ new Chart(document.getElementById('corrScatter_${i}'), {
 </div>
 <h3>Model Comparison (Top 10)</h3><table><thead><tr><th>#</th><th>Model</th><th>Category</th>${isClassification ? '<th>Accuracy</th><th>F1</th>' : '<th>R²</th><th>RMSE</th>'}<th>Status</th></tr></thead>
 <tbody>${(mlResults.models || []).slice(0, 10).map((m, i) => `<tr><td>${i + 1}</td><td><strong>${m.type || m.name}</strong></td><td><span class="badge badge-info">${m.category || '-'}</span></td>${isClassification ? `<td>${(m.accuracy * 100)?.toFixed(1)}%</td><td>${(m.f1 * 100)?.toFixed(1)}%</td>` : `<td>${m.r2?.toFixed(4)}</td><td>${m.rmse?.toFixed(4)}</td>`}<td>${i === 0 ? '<span class="badge badge-success">🥇 Best</span>' : '<span class="badge">Trained</span>'}</td></tr>`).join('')}</tbody></table>`
+
+            if (selectedMetrics && Object.keys(selectedMetrics).length > 0) {
+                html += `<h3>Advanced Evaluation Metrics</h3><table><thead><tr><th>Metric</th><th>Value</th></tr></thead><tbody>
+<tr><td>Accuracy</td><td>${formatValue(selectedMetrics.accuracy)}</td></tr>
+<tr><td>Precision</td><td>${formatValue(selectedMetrics.precision)}</td></tr>
+<tr><td>Recall</td><td>${formatValue(selectedMetrics.recall)}</td></tr>
+<tr><td>F1 Score</td><td>${formatValue(selectedMetrics.f1)}</td></tr>
+<tr><td>ROC-AUC</td><td>${formatValue(selectedMetrics.roc_auc)}</td></tr>
+<tr><td>R²</td><td>${formatValue(selectedMetrics.r2)}</td></tr>
+<tr><td>MAE</td><td>${formatValue(selectedMetrics.mae)}</td></tr>
+<tr><td>MSE</td><td>${formatValue(selectedMetrics.mse)}</td></tr>
+<tr><td>RMSE</td><td>${formatValue(selectedMetrics.rmse)}</td></tr>
+<tr><td>Silhouette</td><td>${formatValue(selectedMetrics.silhouette)}</td></tr>
+<tr><td>Inertia</td><td>${formatValue(selectedMetrics.inertia)}</td></tr>
+<tr><td>Bias Level</td><td>${selectedMetrics.bias_level || '-'}</td></tr>
+<tr><td>Variance Level</td><td>${selectedMetrics.variance_level || '-'}</td></tr>
+</tbody></table>`
+
+                if (selectedMetrics.roc_curve?.fpr?.length > 1 && selectedMetrics.roc_curve?.tpr?.length > 1) {
+                    html += `<h3>ROC Curve</h3><div class="chart-card"><canvas id="rocCurveChart"></canvas></div>
+<script>
+new Chart(document.getElementById('rocCurveChart'), {
+    type: 'line',
+    data: {
+        labels: ${JSON.stringify(selectedMetrics.roc_curve.fpr)},
+        datasets: [{
+            label: 'ROC',
+            data: ${JSON.stringify(selectedMetrics.roc_curve.tpr)},
+            borderColor: 'rgba(79,70,229,1)',
+            backgroundColor: 'rgba(79,70,229,0.15)',
+            fill: false,
+            pointRadius: 0,
+            tension: 0.2
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: { title: { display: true, text: 'ROC Curve' } },
+        scales: {
+            x: { title: { display: true, text: 'False Positive Rate' }, min: 0, max: 1 },
+            y: { title: { display: true, text: 'True Positive Rate' }, min: 0, max: 1 }
+        }
+    }
+});
+</script>`
+                }
+            }
+
+            if (businessContext.metric) {
+                const metricKey = businessContext.metric
+                const targetValue = Number(businessContext.target)
+                const direction = businessContext.direction || '>='
+                const actual = Number(selectedMetrics?.[ metricKey ] ?? bestModel?.[ metricKey ])
+                const hasActual = Number.isFinite(actual)
+                const aligned = hasActual && (direction === '<=' ? actual <= targetValue : actual >= targetValue)
+                html += `<h3>Business Alignment</h3><div class="insight ${aligned ? 'insight-success' : 'insight-warning'}"><strong>Target:</strong> ${metricKey} ${direction} ${formatValue(targetValue)} | <strong>Actual:</strong> ${hasActual ? formatValue(actual) : '-'} | <strong>Status:</strong> ${aligned ? 'Aligned' : 'Needs Improvement'}</div>`
+            }
+
+            if (isClustering) {
+                html += `<div class="insight insight-info"><strong>Clustering Insight:</strong> Review silhouette and inertia jointly. Higher silhouette and lower inertia generally indicate better cluster separation and compactness.</div>`
+            }
 
             // Feature Importance
             if (mlResults.featureImportance?.length > 0) {
@@ -430,51 +497,60 @@ new Chart(document.getElementById('featureChart'), {
             html += `</div>`
         }
 
-        // Anomaly Section
-        if (config.includeAnomaly && anomalyResults) {
-            html += `<h2>8. Anomaly Detection Results</h2><div class="section">
-<div class="grid">
-<div class="card"><div class="card-value">${anomalyResults.totalRows?.toLocaleString()}</div><div class="card-label">Total Records</div></div>
-<div class="card"><div class="card-value" style="color:#ef4444">${anomalyResults.anomalyCount}</div><div class="card-label">Anomalies</div></div>
-<div class="card"><div class="card-value" style="color:#10b981">${anomalyResults.normalCount?.toLocaleString()}</div><div class="card-label">Normal</div></div>
-<div class="card"><div class="card-value">${anomalyResults.anomalyPercentage}%</div><div class="card-label">Anomaly Rate</div></div>
-</div>
-<div class="insight ${parseFloat(anomalyResults.anomalyPercentage) < 5 ? 'insight-success' : parseFloat(anomalyResults.anomalyPercentage) < 15 ? 'insight-warning' : 'insight-info'}">
-<strong>Detection Method:</strong> ${anomalyResults.method || 'Isolation Forest'} | 
-<strong>Result:</strong> ${parseFloat(anomalyResults.anomalyPercentage) < 5 ? 'Low anomaly rate - data appears clean' : parseFloat(anomalyResults.anomalyPercentage) < 15 ? 'Moderate anomalies detected - review recommended' : 'High anomaly rate - data quality review needed'}
-</div>`
-            if (anomalyResults.columnStats?.length > 0) {
-                html += `<h3>Column Statistics (Normal vs Anomaly)</h3><table><thead><tr><th>Column</th><th>Normal Mean</th><th>Anomaly Mean</th><th>Difference</th></tr></thead>
-<tbody>${anomalyResults.columnStats.slice(0, 10).map(s => `<tr><td>${s.column}</td><td style="color:#10b981">${s.normalMean}</td><td style="color:#ef4444">${s.anomalyMean}</td><td><span class="badge ${parseFloat(s.difference) > 1 ? 'badge-warning' : 'badge-success'}">${s.difference}</span></td></tr>`).join('')}</tbody></table>`
-            }
-            html += `</div>`
-        }
+        if (config.includeStatsMath && statsMathResults) {
+            const hs = statsMathResults.hypothesis_testing || {}
+            const ts = statsMathResults.time_series || {}
+            const la = statsMathResults.linear_algebra || {}
+            const bayes = statsMathResults.bayesian || {}
+            const ab = statsMathResults.ab_test || {}
+            const pVal = hs.t_test?.p_value ?? hs.anova?.p_value ?? hs.chi_square?.p_value
 
-        // Time Series Section
-        if (config.includeTimeSeries && timeSeriesResults) {
-            const ts = timeSeriesResults.statistics
-            html += `<h2>9. Time Series Analysis</h2><div class="section">
-<div class="grid">
-<div class="card"><div class="card-value">${ts?.dataPoints?.toLocaleString() || '-'}</div><div class="card-label">Data Points</div></div>
-<div class="card"><div class="card-value" style="color:${ts?.trend === 'Upward' ? '#10b981' : '#ef4444'}">${ts?.trend || '-'}</div><div class="card-label">Trend</div></div>
-<div class="card"><div class="card-value">${ts?.seasonalityStrength || '-'}</div><div class="card-label">Seasonality</div></div>
-<div class="card"><div class="card-value">${ts?.slope || '-'}</div><div class="card-label">Slope</div></div>
+            html += `<h2>8. Statistics and Mathematics</h2><div class="section">
+<div class="kpi-grid">
+<div class="kpi"><div class="k">Probability Mean</div><div class="v">${formatValue(statsMathResults.probability?.mean, 3)}</div></div>
+<div class="kpi"><div class="k">CI Lower</div><div class="v">${formatValue(statsMathResults.confidence_intervals?.lower, 3)}</div></div>
+<div class="kpi"><div class="k">CI Upper</div><div class="v">${formatValue(statsMathResults.confidence_intervals?.upper, 3)}</div></div>
+<div class="kpi"><div class="k">Top p-value</div><div class="v">${formatValue(pVal, 4)}</div></div>
+<div class="kpi"><div class="k">P(Variant > Control)</div><div class="v">${formatValue(bayes.p_variant_gt_control, 4)}</div></div>
+<div class="kpi"><div class="k">Matrix Rank</div><div class="v">${la.rank ?? '-'}</div></div>
 </div>
-<h3>Statistical Summary</h3><table><thead><tr><th>Metric</th><th>Value</th></tr></thead>
-<tbody>
-<tr><td>Mean</td><td>${ts?.mean || '-'}</td></tr>
-<tr><td>Standard Deviation</td><td>${ts?.std || '-'}</td></tr>
-<tr><td>Minimum</td><td>${ts?.min || '-'}</td></tr>
-<tr><td>Maximum</td><td>${ts?.max || '-'}</td></tr>
-<tr><td>Date Column</td><td>${timeSeriesResults.config?.dateColumn || '-'}</td></tr>
-<tr><td>Value Column</td><td>${timeSeriesResults.config?.valueColumn || '-'}</td></tr>
+
+<h3>Hypothesis Tests</h3><table><thead><tr><th>Test</th><th>Statistic</th><th>p-value</th><th>Interpretation (5%)</th></tr></thead><tbody>
+<tr><td>T-test</td><td>${formatValue(hs.t_test?.t_statistic)}</td><td>${formatValue(hs.t_test?.p_value)}</td><td>${Number(hs.t_test?.p_value) < 0.05 ? 'Significant' : 'Not Significant'}</td></tr>
+<tr><td>ANOVA</td><td>${formatValue(hs.anova?.f_statistic)}</td><td>${formatValue(hs.anova?.p_value)}</td><td>${Number(hs.anova?.p_value) < 0.05 ? 'Significant' : 'Not Significant'}</td></tr>
+<tr><td>Chi-square</td><td>${formatValue(hs.chi_square?.chi2_statistic)}</td><td>${formatValue(hs.chi_square?.p_value)}</td><td>${Number(hs.chi_square?.p_value) < 0.05 ? 'Significant' : 'Not Significant'}</td></tr>
 </tbody></table>
-<div class="insight insight-info"><strong>Trend Analysis:</strong> Data shows ${ts?.trend?.toLowerCase() || 'a'} trend with slope of ${ts?.slope || 'N/A'} and seasonality strength of ${ts?.seasonalityStrength || 'N/A'}.</div>
+
+<h3>A/B and Bayesian Summary</h3><table><thead><tr><th>Metric</th><th>Value</th></tr></thead><tbody>
+<tr><td>Control Rate</td><td>${formatValue(ab.control?.rate)}</td></tr>
+<tr><td>Variant Rate</td><td>${formatValue(ab.variant?.rate)}</td></tr>
+<tr><td>Absolute Lift</td><td>${formatValue(ab.absolute_lift)}</td></tr>
+<tr><td>Relative Lift</td><td>${formatValue(ab.relative_lift)}</td></tr>
+<tr><td>Z-test p-value</td><td>${formatValue(ab.p_value)}</td></tr>
+<tr><td>Bayesian P(Variant > Control)</td><td>${formatValue(bayes.p_variant_gt_control)}</td></tr>
+<tr><td>Expected Uplift</td><td>${formatValue(bayes.expected_uplift)}</td></tr>
+</tbody></table>
+
+<h3>Time Series Forecast</h3><table><thead><tr><th>Model</th><th>AIC</th><th>BIC</th><th>Forecast Points</th></tr></thead><tbody>
+<tr><td>ARIMA</td><td>${formatValue(ts.arima?.aic)}</td><td>${formatValue(ts.arima?.bic)}</td><td>${Array.isArray(ts.arima?.forecast) ? ts.arima.forecast.length : 0}</td></tr>
+<tr><td>SARIMA</td><td>${formatValue(ts.sarima?.aic)}</td><td>${formatValue(ts.sarima?.bic)}</td><td>${Array.isArray(ts.sarima?.forecast) ? ts.sarima.forecast.length : 0}</td></tr>
+</tbody></table>
+
+<h3>Linear Algebra Summary</h3><table><thead><tr><th>Metric</th><th>Value</th></tr></thead><tbody>
+<tr><td>Matrix Shape</td><td>${Array.isArray(la.shape) ? la.shape.join(' x ') : '-'}</td></tr>
+<tr><td>Rank</td><td>${la.rank ?? '-'}</td></tr>
+<tr><td>Top Eigenvalue</td><td>${Array.isArray(la.eigenvalues) && la.eigenvalues.length ? formatValue(la.eigenvalues[ 0 ]) : '-'}</td></tr>
+<tr><td>Top Singular Value</td><td>${Array.isArray(la.singular_values) && la.singular_values.length ? formatValue(la.singular_values[ 0 ]) : '-'}</td></tr>
+<tr><td>Vector Dot Product</td><td>${formatValue(la.vector_analysis?.dot_product)}</td></tr>
+<tr><td>Vector Cosine Similarity</td><td>${formatValue(la.vector_analysis?.cosine_similarity)}</td></tr>
+</tbody></table>
+
+${Array.isArray(statsMathResults.warnings) && statsMathResults.warnings.length > 0 ? `<h3>Analysis Warnings</h3>${statsMathResults.warnings.map(w => `<div class="insight insight-warning">${w}</div>`).join('')}` : ''}
 </div>`
         }
 
         // Recommendations
-        html += `<h2>10. Recommendations and Next Steps</h2><div class="section">`
+        html += `<h2>9. Recommendations and Next Steps</h2><div class="section">`
 
         if (edaResults) {
             html += `<div class="insight ${edaResults.qualityScore >= 80 ? 'insight-success' : 'insight-warning'}"><strong>Data Quality:</strong> ${edaResults.qualityScore >= 80 ? 'Excellent data quality (' + edaResults.qualityScore + '/100). Ready for advanced modeling.' : 'Data quality score is ' + edaResults.qualityScore + '/100. Consider addressing missing values and outliers.'}</div>`
@@ -482,11 +558,8 @@ new Chart(document.getElementById('featureChart'), {
         if (mlResults?.models?.[ 0 ]) {
             html += `<div class="insight insight-info"><strong>Model Recommendation:</strong> ${mlResults.models[ 0 ].type || mlResults.models[ 0 ].name} performed best. Consider hyperparameter tuning for further improvement.</div>`
         }
-        if (anomalyResults) {
-            html += `<div class="insight ${parseFloat(anomalyResults.anomalyPercentage) < 10 ? 'insight-success' : 'insight-warning'}"><strong>Anomaly Handling:</strong> ${anomalyResults.anomalyCount} anomalies detected (${anomalyResults.anomalyPercentage}%). ${parseFloat(anomalyResults.anomalyPercentage) < 10 ? 'Acceptable level.' : 'Review and handle before production use.'}</div>`
-        }
-        if (timeSeriesResults) {
-            html += `<div class="insight insight-info"><strong>Time Series:</strong> ${timeSeriesResults.statistics?.trend} trend detected. Consider ARIMA or Prophet for production forecasting.</div>`
+        if (statsMathResults?.ab_test?.p_value != null) {
+            html += `<div class="insight insight-info"><strong>Experiment Recommendation:</strong> A/B test p-value is ${formatValue(statsMathResults.ab_test.p_value)}. ${Number(statsMathResults.ab_test.p_value) < 0.05 ? 'The uplift is statistically significant; consider rollout planning.' : 'Result is not statistically significant yet; increase sample size or duration.'}</div>`
         }
 
         html += `</div>
@@ -525,13 +598,13 @@ new Chart(document.getElementById('featureChart'), {
 
     return (
         <div className="space-y-6">
-            <div className="card bg-gradient-to-r from-blue-800 via-teal-700 to-orange-600 text-white">
+            <div className="card hero-contrast bg-gradient-to-r from-blue-800 via-teal-700 to-orange-600 text-white">
                 <div className="flex items-center justify-between">
                     <div>
                         <h1 className="title-display mb-1 text-2xl font-bold">Comprehensive Report Generator</h1>
                         <p className="text-cyan-100">Generate full analysis reports with all insights & visualizations</p>
                     </div>
-                    <button onClick={generateReport} disabled={generating} className="flex items-center gap-2 rounded-lg bg-white px-6 py-3 font-semibold text-blue-700 transition hover:bg-blue-50 disabled:opacity-70">
+                    <button onClick={generateReport} disabled={generating} className="btn-secondary flex items-center gap-2 border-white/40 bg-white text-blue-700 hover:bg-white/90 disabled:opacity-70">
                         {generating ? <Loader size={18} className="animate-spin" /> : <FileText size={18} />}
                         {generating ? 'Generating...' : 'Generate Report'}
                     </button>
@@ -543,8 +616,7 @@ new Chart(document.getElementById('featureChart'), {
                 {[
                     { key: 'eda', label: 'EDA', icon: BarChart3, data: edaResults, color: 'green', value: edaResults?.qualityScore ? `${edaResults.qualityScore}/100` : 'Not Run' },
                     { key: 'ml', label: 'ML', icon: Brain, data: mlResults, color: 'purple', value: mlResults?.models?.[ 0 ]?.type || 'Not Run' },
-                    { key: 'anomaly', label: 'Anomaly', icon: AlertTriangle, data: anomalyResults, color: 'red', value: anomalyResults ? `${anomalyResults.anomalyCount} found` : 'Not Run' },
-                    { key: 'timeSeries', label: 'Time Series', icon: TrendingUp, data: timeSeriesResults, color: 'cyan', value: timeSeriesResults?.statistics?.trend || 'Not Run' }
+                    { key: 'stats', label: 'Stats & Math', icon: Sigma, data: statsMathResults, color: 'cyan', value: statsMathResults?.selected_columns?.numeric || 'Not Run' }
                 ].map(item => {
                     const Icon = item.icon
                     const hasData = !!item.data
@@ -567,7 +639,7 @@ new Chart(document.getElementById('featureChart'), {
                         <AlertCircle size={24} className="text-yellow-600" />
                         <div>
                             <p className="font-semibold text-yellow-800">No Analysis Results Yet</p>
-                            <p className="text-yellow-700 text-sm">Run analyses in Auto EDA, Auto ML, Anomaly Detection, or Time Series pages first. Results will be included in the report.</p>
+                            <p className="text-yellow-700 text-sm">Run analyses in Auto EDA or Auto ML pages first. Results will be included in the report.</p>
                         </div>
                     </div>
                 </div>
@@ -575,18 +647,17 @@ new Chart(document.getElementById('featureChart'), {
 
             {/* Configuration */}
             <div className="card">
-                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2"><Settings size={20} /> Report Sections</h3>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                <h3 className="section-title mb-4 flex items-center gap-2"><Settings size={20} /> Report Sections</h3>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                     {[
                         { key: 'includeEDA', label: 'EDA Analysis', icon: BarChart3, hasData: !!edaResults },
                         { key: 'includeML', label: 'ML Results', icon: Brain, hasData: !!mlResults },
-                        { key: 'includeAnomaly', label: 'Anomaly Detection', icon: AlertTriangle, hasData: !!anomalyResults },
-                        { key: 'includeTimeSeries', label: 'Time Series', icon: TrendingUp, hasData: !!timeSeriesResults },
+                        { key: 'includeStatsMath', label: 'Statistics & Math', icon: Sigma, hasData: !!statsMathResults },
                         { key: 'includeDataPreview', label: 'Data Preview', icon: Eye, hasData: true }
                     ].map(item => {
                         const Icon = item.icon
                         return (
-                            <label key={item.key} className={`flex items-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition ${config[ item.key ] ? 'border-purple-500 bg-purple-50' : 'border-gray-200'} ${!item.hasData ? 'opacity-50' : ''}`}>
+                            <label key={item.key} className={`flex items-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition ${config[ item.key ] ? 'border-blue-500 bg-blue-50' : 'border-gray-200'} ${!item.hasData ? 'opacity-50' : ''}`}>
                                 <input type="checkbox" checked={config[ item.key ]} onChange={(e) => setConfig({ ...config, [ item.key ]: e.target.checked })} className="w-4 h-4" disabled={!item.hasData && item.key !== 'includeDataPreview'} />
                                 <Icon size={16} />
                                 <span className="text-sm">{item.label}</span>
@@ -600,11 +671,11 @@ new Chart(document.getElementById('featureChart'), {
             {reportData && (
                 <div className="card">
                     <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-lg font-semibold flex items-center gap-2"><CheckCircle size={20} className="text-green-600" /> Report Generated</h3>
+                        <h3 className="section-title flex items-center gap-2"><CheckCircle size={20} className="text-green-600" /> Report Generated</h3>
                         <div className="flex gap-3">
-                            <button onClick={() => downloadReport('html')} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"><Download size={18} /> HTML</button>
-                            <button onClick={() => downloadReport('pdf')} className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"><Download size={18} /> PDF</button>
-                            <button onClick={generateReport} className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition"><RefreshCw size={18} /> Regenerate</button>
+                            <button onClick={() => downloadReport('html')} className="btn-primary flex items-center gap-2 px-4 py-2"><Download size={18} /> HTML</button>
+                            <button onClick={() => downloadReport('pdf')} className="btn-danger flex items-center gap-2 px-4 py-2"><Download size={18} /> PDF</button>
+                            <button onClick={generateReport} className="btn-secondary flex items-center gap-2 px-4 py-2"><RefreshCw size={18} /> Regenerate</button>
                         </div>
                     </div>
                     <div className="border rounded-lg overflow-hidden">
@@ -621,14 +692,13 @@ new Chart(document.getElementById('featureChart'), {
 
             {/* What's Included */}
             <div className="card">
-                <h3 className="text-lg font-semibold mb-4">Report Contents</h3>
+                <h3 className="section-title mb-4">Report Contents</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {[
                         { icon: '📁', title: 'Dataset Overview', items: [ 'Row/column counts', 'Data types', 'Data preview' ] },
                         { icon: '🔍', title: 'EDA Analysis', items: [ 'Quality score', 'Statistics', 'Missing data', 'Correlations', 'AI insights' ] },
                         { icon: '🤖', title: 'ML Results', items: [ 'Model comparison', 'Best model', 'Feature importance', 'Metrics' ] },
-                        { icon: '⚠️', title: 'Anomaly Detection', items: [ 'Anomaly count', 'Detection method', 'Column statistics' ] },
-                        { icon: '📈', title: 'Time Series', items: [ 'Trend analysis', 'Seasonality', 'Statistics' ] },
+                        { icon: '📐', title: 'Statistics & Mathematics', items: [ 'Hypothesis tests', 'A/B + Bayesian', 'ARIMA/SARIMA', 'Linear algebra' ] },
                         { icon: '💡', title: 'Recommendations', items: [ 'Data quality tips', 'Model suggestions', 'Next steps' ] }
                     ].map((section, i) => (
                         <div key={i} className="flex gap-3 p-3 bg-gray-50 rounded-lg">

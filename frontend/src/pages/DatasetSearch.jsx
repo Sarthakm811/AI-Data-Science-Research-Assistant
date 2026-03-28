@@ -115,8 +115,10 @@ function DatasetSearch({ setDataset }) {
     const handleFileChange = (e) => {
         const file = e.target.files[ 0 ]
         if (file) {
-            if (!file.name.endsWith('.csv') && !file.name.endsWith('.xlsx')) {
-                setUploadError('Please select a CSV or XLSX file')
+            const lowerName = file.name.toLowerCase()
+            const supported = [ '.csv', '.xlsx', '.xls', '.jpg', '.jpeg', '.png' ]
+            if (!supported.some((ext) => lowerName.endsWith(ext))) {
+                setUploadError('Please select CSV, XLSX, XLS, JPG, JPEG, or PNG file')
                 return
             }
             setSelectedFile(file)
@@ -159,11 +161,11 @@ function DatasetSearch({ setDataset }) {
     return (
         <div className="space-y-6 fade-up">
             {/* Header */}
-            <div className="card lift-hover bg-gradient-to-r from-blue-800 via-teal-700 to-orange-600 text-white">
+            <div className="card hero-contrast lift-hover bg-gradient-to-r from-blue-800 via-teal-700 to-orange-600 text-white">
                 <div className="flex items-center justify-between">
                     <div>
                         <h1 className="title-display mb-2 text-3xl font-bold">Dataset Search & Upload</h1>
-                        <p className="text-cyan-100">Search Kaggle datasets or upload your own CSV/XLSX files</p>
+                        <p className="text-cyan-100">Search Kaggle datasets or upload CSV/XLSX or image files (JPG/PNG)</p>
                     </div>
                     <button
                         onClick={() => setShowSettings(!showSettings)}
@@ -418,7 +420,7 @@ function DatasetSearch({ setDataset }) {
                             <input
                                 type="file"
                                 onChange={handleFileChange}
-                                accept=".csv,.xlsx"
+                                accept=".csv,.xlsx,.xls,.jpg,.jpeg,.png"
                                 className="hidden"
                                 id="file-input"
                             />
@@ -430,7 +432,7 @@ function DatasetSearch({ setDataset }) {
                                 <span className="text-sm font-medium text-gray-700">
                                     {selectedFile ? selectedFile.name : 'Click to upload or drag and drop'}
                                 </span>
-                                <span className="text-xs text-gray-500">CSV or XLSX (max 100MB)</span>
+                                <span className="text-xs text-gray-500">CSV, XLSX, XLS, JPG, JPEG, PNG (max 100MB)</span>
                             </label>
                         </div>
 
@@ -464,6 +466,7 @@ function DatasetSearch({ setDataset }) {
                             <ul className="text-sm text-blue-800 space-y-1">
                                 <li>• CSV (.csv)</li>
                                 <li>• Excel (.xlsx, .xls)</li>
+                                <li>• Images (.jpg, .jpeg, .png)</li>
                                 <li>• Maximum file size: 100 MB</li>
                             </ul>
                         </div>

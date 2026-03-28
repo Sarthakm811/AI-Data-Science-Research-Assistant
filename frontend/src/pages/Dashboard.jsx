@@ -1,6 +1,6 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
-import { Search, BarChart3, Brain, MessageSquare, FileText, Database, AlertTriangle, TrendingUp } from 'lucide-react'
+import { Search, Sparkles, SlidersHorizontal, BarChart3, Brain, Calculator, MessageSquare, FileText, Database } from 'lucide-react'
 
 const features = [
     {
@@ -9,6 +9,20 @@ const features = [
         description: 'Search and download datasets from Kaggle',
         path: '/search',
         color: 'bg-blue-500'
+    },
+    {
+        icon: Sparkles,
+        title: 'Data Cleaning',
+        description: 'Clean missing values, duplicates, and outliers before analysis',
+        path: '/cleaning',
+        color: 'bg-teal-600'
+    },
+    {
+        icon: SlidersHorizontal,
+        title: 'Feature Engineering',
+        description: 'Create, encode, scale, and reduce features for better models',
+        path: '/features',
+        color: 'bg-indigo-600'
     },
     {
         icon: BarChart3,
@@ -25,18 +39,11 @@ const features = [
         color: 'bg-purple-500'
     },
     {
-        icon: AlertTriangle,
-        title: 'Anomaly Detection',
-        description: 'Identify outliers using Isolation Forest & Z-Score',
-        path: '/anomaly',
-        color: 'bg-red-500'
-    },
-    {
-        icon: TrendingUp,
-        title: 'Time Series',
-        description: 'Analyze trends, seasonality, and forecast values',
-        path: '/timeseries',
-        color: 'bg-cyan-500'
+        icon: Calculator,
+        title: 'Statistics and Math',
+        description: 'Run probability, hypothesis tests, Bayesian analysis, time series, and linear algebra',
+        path: '/statistics',
+        color: 'bg-cyan-700'
     },
     {
         icon: MessageSquare,
@@ -58,7 +65,7 @@ function Dashboard({ dataset }) {
     return (
         <div className="space-y-8">
             {/* Hero Section */}
-            <div className="card overflow-hidden bg-gradient-to-r from-teal-700 via-blue-800 to-orange-600 text-white">
+            <div className="card hero-contrast overflow-hidden bg-gradient-to-r from-teal-700 via-blue-800 to-orange-600 text-white">
                 <div className="relative z-10">
                     <h1 className="title-display mb-2 text-3xl font-bold">Welcome to AI Data Science Assistant</h1>
                     <p className="mb-4 text-cyan-100">Build models, inspect quality, and generate insights faster</p>

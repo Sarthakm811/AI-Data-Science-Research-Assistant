@@ -3,23 +3,25 @@ import { Link, useLocation } from 'react-router-dom'
 import {
     LayoutDashboard,
     Search,
+    Sparkles,
+    SlidersHorizontal,
     BarChart3,
     Brain,
+    Calculator,
     MessageSquare,
     FileText,
     ChevronLeft,
-    ChevronRight,
-    AlertTriangle,
-    TrendingUp
+    ChevronRight
 } from 'lucide-react'
 
 const menuItems = [
     { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/search', icon: Search, label: 'Dataset Search' },
+    { path: '/cleaning', icon: Sparkles, label: 'Data Cleaning' },
+    { path: '/features', icon: SlidersHorizontal, label: 'Feature Engineering' },
     { path: '/eda', icon: BarChart3, label: 'Auto EDA' },
     { path: '/ml', icon: Brain, label: 'Auto ML' },
-    { path: '/anomaly', icon: AlertTriangle, label: 'Anomaly Detection' },
-    { path: '/timeseries', icon: TrendingUp, label: 'Time Series' },
+    { path: '/statistics', icon: Calculator, label: 'Statistics and Math' },
     { path: '/chat', icon: MessageSquare, label: 'AI Chat' },
     { path: '/reports', icon: FileText, label: 'Reports' },
 ]
@@ -44,7 +46,7 @@ function Sidebar({ isOpen, setIsOpen }) {
                         {isOpen && (
                             <div>
                                 <h1 className="title-display text-xl font-bold gradient-text">Project Navigator</h1>
-                                <p className="mt-1 text-xs text-slate-400">Data science command center</p>
+                                <p className="mt-1 text-xs font-medium text-slate-400">Data science command center</p>
                             </div>
                         )}
                         <button
@@ -57,6 +59,9 @@ function Sidebar({ isOpen, setIsOpen }) {
                     </div>
 
                     <nav className="mt-4 space-y-1 px-3">
+                        {isOpen && (
+                            <p className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Navigation</p>
+                        )}
                         {menuItems.map((item) => {
                             const Icon = item.icon
                             const isActive = location.pathname === item.path
@@ -67,12 +72,12 @@ function Sidebar({ isOpen, setIsOpen }) {
                                     to={item.path}
                                     onClick={() => window.innerWidth < 1024 && setIsOpen(false)}
                                     className={`group flex items-center rounded-xl px-3 py-2.5 transition-all duration-200 ${isActive
-                                            ? 'bg-gradient-to-r from-teal-600/80 to-blue-700/85 text-white shadow-md shadow-blue-900/30'
-                                            : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                                        ? 'bg-gradient-to-r from-teal-600/85 to-blue-700/85 text-white shadow-md shadow-blue-900/30 ring-1 ring-white/20'
+                                        : 'text-slate-300 hover:bg-slate-800/90 hover:text-white'
                                         }`}
                                 >
                                     <Icon size={20} className={isActive ? 'text-white' : 'text-slate-400 group-hover:text-slate-100'} />
-                                    {isOpen && <span className="ml-3 text-sm font-medium">{item.label}</span>}
+                                    {isOpen && <span className="ml-3 text-sm font-semibold tracking-tight">{item.label}</span>}
                                 </Link>
                             )
                         })}

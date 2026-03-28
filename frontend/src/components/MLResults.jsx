@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, Cell } from 'recharts'
 import { CheckCircle, ChevronDown, Trophy, Zap, Clock } from 'lucide-react'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || ''
@@ -22,7 +22,43 @@ const CATEGORY_COLORS = {
     'GLM': 'bg-emerald-100 text-emerald-700'
 }
 
-function MLResults({ results }) {
+const BUSINESS_METRIC_LABELS = {
+    accuracy: 'Accuracy',
+    precision: 'Precision',
+    recall: 'Recall',
+    f1: 'F1 Score',
+    roc_auc: 'ROC-AUC',
+    r2: 'R² Score',
+    mae: 'MAE',
+    mse: 'MSE',
+    rmse: 'RMSE',
+    silhouette: 'Silhouette Score',
+    inertia: 'Inertia'
+}
+
+function getMetricValue(metricKey, metrics, bestModel) {
+    const bestValue = bestModel?.[ metricKey ]
+    if (bestValue != null && Number.isFinite(Number(bestValue))) {
+        return Number(bestValue)
+    }
+
+    const metricsValue = metrics?.[ metricKey ]
+    if (metricsValue != null && Number.isFinite(Number(metricsValue))) {
+        return Number(metricsValue)
+    }
+
+    return null
+}
+
+function getModelMetricValue(metricKey, model) {
+    const value = model?.[ metricKey ]
+    if (value != null && Number.isFinite(Number(value))) {
+        return Number(value)
+    }
+    return null
+}
+
+function MLResults({ results, onApplyClusterToDataset }) {
     const [ expandedModel, setExpandedModel ] = useState(null)
     const [ viewMode, setViewMode ] = useState('all') // 'all' or category name
     const [ downloadFormat, setDownloadFormat ] = useState('pkl')
@@ -39,7 +75,8 @@ function MLResults({ results }) {
     const taskTypeText = String(results.taskType || results.task_type || '').toLowerCase()
     const isClassification = taskTypeText.includes('classification')
     const isRegression = taskTypeText.includes('regression')
-    const primaryMetric = isClassification ? 'accuracy' : 'r2'
+    const isClustering = taskTypeText.includes('clustering')
+    const primaryMetric = isClassification ? 'accuracy' : isClustering ? 'silhouette' : 'r2'
 
     const bestModel = results.models.reduce((best, current) =>
         (current[ primaryMetric ] || 0) > (best[ primaryMetric ] || 0) ? current : best,
@@ -57,6 +94,75 @@ function MLResults({ results }) {
     const metrics = results.metrics || {}
     const confusion = results.confusion_matrix || {}
     const hasConfusionMatrix = Array.isArray(confusion.matrix) && confusion.matrix.length > 0
+    const rocCurve = metrics.roc_curve || bestModel?.roc_curve || null
+    const rocCurveData = Array.isArray(rocCurve?.fpr) && Array.isArray(rocCurve?.tpr)
+        ? rocCurve.fpr.map((fpr, idx) => ({
+            fpr: Number(fpr),
+            tpr: Number(rocCurve.tpr[ idx ] ?? 0),
+            baseline: Number(fpr)
+        }))
+        : []
+
+    const biasLevel = metrics.bias_level || bestModel?.bias_level
+    const varianceLevel = metrics.variance_level || bestModel?.variance_level
+    const biasProxy = metrics.bias_proxy ?? bestModel?.bias_proxy
+    const varianceProxy = metrics.variance_proxy ?? bestModel?.variance_proxy
+
+    const businessContext = results.business_context || {}
+    const businessMetricKey = businessContext.metric
+    const businessTarget = businessContext.target
+    const businessDirection = businessContext.direction || '>='
+    const businessMetricValue = businessMetricKey ? getMetricValue(businessMetricKey, metrics, bestModel) : null
+    const businessTargetNumber = businessTarget != null ? Number(businessTarget) : null
+    const hasBusinessAlignment = businessMetricKey && businessMetricValue != null && businessTargetNumber != null
+    const businessPass = hasBusinessAlignment
+        ? (businessDirection === '<=' ? businessMetricValue <= businessTargetNumber : businessMetricValue >= businessTargetNumber)
+        : false
+
+    const modelMeetsBusinessTarget = (model) => {
+        if (!hasBusinessAlignment || !businessMetricKey) {
+            return null
+        }
+
+        const value = getModelMetricValue(businessMetricKey, model)
+        if (value == null) {
+            return null
+        }
+
+        return businessDirection === '<=' ? value <= businessTargetNumber : value >= businessTargetNumber
+    }
+
+    const alignmentRecommendation = (() => {
+        if (!hasBusinessAlignment || businessPass) {
+            return null
+        }
+
+        if (isClassification) {
+            if (varianceLevel === 'High') {
+                return 'Recommendation: reduce overfitting by simplifying the model, increasing regularization, and enabling stronger cross-validation.'
+            }
+            if (biasLevel === 'High') {
+                return 'Recommendation: reduce underfitting by adding richer features, trying more expressive models, and tuning hyperparameters.'
+            }
+            return 'Recommendation: optimize classification threshold and run hyperparameter tuning to improve precision/recall trade-offs.'
+        }
+
+        if (isRegression) {
+            if (varianceLevel === 'High') {
+                return 'Recommendation: stabilize generalization with regularization, feature pruning, and more robust CV folds.'
+            }
+            if (biasLevel === 'High') {
+                return 'Recommendation: improve fit quality with nonlinear features or stronger models, then retune with Grid/Random search.'
+            }
+            return 'Recommendation: tune model depth/penalties and refine feature engineering to close the target gap.'
+        }
+
+        if (isClustering) {
+            return 'Recommendation: re-run clustering with different cluster counts and scaling, then compare silhouette and inertia together.'
+        }
+
+        return 'Recommendation: rerun training with tuning enabled and evaluate model stability using cross-validation metrics.'
+    })()
 
     const downloadTrainedModel = async () => {
         if (!results?.model_id) return
@@ -129,6 +235,25 @@ function MLResults({ results }) {
                         </div>
                     )}
 
+                    {isClassification && (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
+                            <MetricCard label="ROC-AUC" value={metrics.roc_auc != null ? Number(metrics.roc_auc).toFixed(4) : 'N/A'} />
+                            <MetricCard label="Bias Indicator" value={biasLevel || 'N/A'} />
+                            <MetricCard label="Variance Indicator" value={varianceLevel || 'N/A'} />
+                        </div>
+                    )}
+
+                    {isRegression && (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
+                            <MetricCard label="Bias Indicator" value={biasLevel || 'N/A'} />
+                            <MetricCard label="Variance Indicator" value={varianceLevel || 'N/A'} />
+                            <MetricCard
+                                label="Generalization Stability"
+                                value={metrics.cv_std != null ? Number(metrics.cv_std).toFixed(4) : 'N/A'}
+                            />
+                        </div>
+                    )}
+
                     {hasConfusionMatrix && (
                         <div className="pt-2">
                             <p className="text-sm font-semibold text-gray-900 mb-2">Confusion Matrix</p>
@@ -156,6 +281,114 @@ function MLResults({ results }) {
                             </div>
                         </div>
                     )}
+
+                    {isClassification && rocCurveData.length > 1 && (
+                        <div className="pt-2">
+                            <p className="text-sm font-semibold text-gray-900 mb-2">ROC Curve</p>
+                            <div className="h-72 w-full rounded-lg border border-gray-200 bg-white p-3">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <LineChart data={rocCurveData} margin={{ top: 10, right: 20, left: 0, bottom: 10 }}>
+                                        <CartesianGrid strokeDasharray="3 3" />
+                                        <XAxis type="number" dataKey="fpr" domain={[ 0, 1 ]} name="False Positive Rate" />
+                                        <YAxis type="number" dataKey="tpr" domain={[ 0, 1 ]} name="True Positive Rate" />
+                                        <Tooltip formatter={(v) => Number(v).toFixed(4)} />
+                                        <Legend />
+                                        <Line type="monotone" dataKey="baseline" stroke="#9ca3af" dot={false} strokeDasharray="5 5" name="Baseline" />
+                                        <Line type="monotone" dataKey="tpr" stroke="#4f46e5" dot={false} strokeWidth={2} name="ROC" />
+                                    </LineChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
+                    )}
+
+                    {isClustering && (
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 pt-2">
+                            <MetricCard label="Silhouette" value={metrics.silhouette != null ? Number(metrics.silhouette).toFixed(4) : 'N/A'} />
+                            <MetricCard label="Inertia" value={metrics.inertia != null ? Number(metrics.inertia).toFixed(2) : 'N/A'} />
+                            <MetricCard label="Calinski-Harabasz" value={metrics.calinski_harabasz != null ? Number(metrics.calinski_harabasz).toFixed(2) : 'N/A'} />
+                            <MetricCard label="Davies-Bouldin" value={metrics.davies_bouldin != null ? Number(metrics.davies_bouldin).toFixed(4) : 'N/A'} />
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {(hasBusinessAlignment || biasLevel || varianceLevel) && (
+                <div className="bg-white border border-gray-200 rounded-lg p-5 space-y-3">
+                    <h3 className="text-lg font-semibold text-gray-900">Model Evaluation Insights</h3>
+
+                    {hasBusinessAlignment && (
+                        <div className={`rounded-lg border p-3 ${businessPass ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
+                            <p className="text-sm font-semibold text-gray-900">
+                                Business Goal: {BUSINESS_METRIC_LABELS[ businessMetricKey ] || businessMetricKey} {businessDirection} {businessTargetNumber}
+                            </p>
+                            <p className="text-sm mt-1 text-gray-700">
+                                Current best value: {businessMetricValue != null ? Number(businessMetricValue).toFixed(4) : 'N/A'}
+                            </p>
+                            <p className={`text-sm mt-1 font-medium ${businessPass ? 'text-emerald-700' : 'text-amber-700'}`}>
+                                {businessPass
+                                    ? 'Aligned: current model performance meets the business threshold.'
+                                    : 'Not aligned yet: adjust model strategy or thresholds to meet business target.'}
+                            </p>
+                            {!businessPass && alignmentRecommendation && (
+                                <p className="text-sm mt-2 text-amber-800">
+                                    {alignmentRecommendation}
+                                </p>
+                            )}
+                        </div>
+                    )}
+
+                    {(biasLevel || varianceLevel) && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                                <p className="text-xs uppercase tracking-wide text-slate-500">Bias</p>
+                                <p className="text-base font-semibold text-slate-900">{biasLevel || 'N/A'}</p>
+                                <p className="text-xs text-slate-600 mt-1">Proxy: {biasProxy != null ? Number(biasProxy).toFixed(4) : 'N/A'}</p>
+                            </div>
+                            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                                <p className="text-xs uppercase tracking-wide text-slate-500">Variance</p>
+                                <p className="text-base font-semibold text-slate-900">{varianceLevel || 'N/A'}</p>
+                                <p className="text-xs text-slate-600 mt-1">Proxy: {varianceProxy != null ? Number(varianceProxy).toFixed(4) : 'N/A'}</p>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {isClustering && results.cluster_preview?.rows?.length > 0 && (
+                <div className="bg-white border border-gray-200 rounded-lg p-5">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                        <h3 className="text-lg font-semibold text-gray-900">Cluster Preview</h3>
+                        {typeof onApplyClusterToDataset === 'function' && (
+                            <button
+                                type="button"
+                                onClick={onApplyClusterToDataset}
+                                className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700"
+                            >
+                                Apply Cluster Labels To Dataset
+                            </button>
+                        )}
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead>
+                                <tr className="bg-slate-50">
+                                    {(results.cluster_preview.headers || []).slice(0, 10).map((h, idx) => (
+                                        <th key={`cluster-h-${idx}`} className="border-b px-3 py-2 text-left font-semibold text-slate-700">{h}</th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {results.cluster_preview.rows.slice(0, 8).map((row, rIdx) => (
+                                    <tr key={`cluster-r-${rIdx}`} className="hover:bg-slate-50">
+                                        {(results.cluster_preview.headers || []).slice(0, 10).map((h, cIdx) => (
+                                            <td key={`cluster-c-${rIdx}-${cIdx}`} className="border-b px-3 py-2 text-slate-600">{String(row[ h ] ?? '')}</td>
+                                        ))}
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                    <p className="mt-2 text-xs text-slate-500">Showing up to 8 rows and first 10 columns including assigned cluster labels.</p>
                 </div>
             )}
 
@@ -195,12 +428,14 @@ function MLResults({ results }) {
                 <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-5 border border-green-200">
                     <div className="flex items-center gap-2 mb-2">
                         <Trophy size={18} className="text-green-600" />
-                        <p className="text-gray-600 text-sm font-medium">{isClassification ? 'Best Accuracy' : 'Best R² Score'}</p>
+                        <p className="text-gray-600 text-sm font-medium">{isClassification ? 'Best Accuracy' : isClustering ? 'Best Silhouette' : 'Best R² Score'}</p>
                     </div>
                     <p className="text-3xl font-bold text-green-900">
                         {isClassification
                             ? `${((bestModel.accuracy || metrics.accuracy || 0) * 100).toFixed(1)}%`
-                            : Number(bestModel.r2 ?? metrics.r2 ?? 0).toFixed(4)
+                            : isClustering
+                                ? Number(bestModel.silhouette ?? metrics.silhouette ?? 0).toFixed(3)
+                                : Number(bestModel.r2 ?? metrics.r2 ?? 0).toFixed(4)
                         }
                     </p>
                 </div>
@@ -254,17 +489,27 @@ function MLResults({ results }) {
             {/* Model Comparison Chart */}
             <div className="bg-white border border-gray-200 rounded-lg p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                    Model Comparison - Top 10 {isClassification ? 'by Accuracy' : 'by R² Score'}
+                    Model Comparison - Top 10 {isClassification ? 'by Accuracy' : isClustering ? 'by Silhouette' : 'by R² Score'}
                 </h3>
+                {hasBusinessAlignment && (
+                    <p className="mb-3 text-xs text-slate-600">
+                        Primary bars are color-banded by business target: green = meets target, amber = below target, indigo = target not applicable.
+                    </p>
+                )}
                 <ResponsiveContainer width="100%" height={350}>
                     <BarChart
                         data={filteredModels.slice(0, 10).map(m => ({
                             name: m.type.length > 15 ? m.type.substring(0, 15) + '...' : m.type,
+                            meetsBusinessTarget: modelMeetsBusinessTarget(m),
                             ...(isClassification ? {
                                 Accuracy: ((m.accuracy || 0) * 100).toFixed(1),
                                 Precision: ((m.precision || 0) * 100).toFixed(1),
                                 Recall: ((m.recall || 0) * 100).toFixed(1),
                                 F1: ((m.f1 || 0) * 100).toFixed(1)
+                            } : isClustering ? {
+                                Silhouette: (m.silhouette ?? 0).toFixed(3),
+                                Calinski: (m.calinski_harabasz ?? 0).toFixed(1),
+                                Davies: (m.davies_bouldin ?? 0).toFixed(3)
                             } : {
                                 'R²': (m.r2 || 0).toFixed(3),
                                 RMSE: (m.rmse || 0).toFixed(3),
@@ -275,18 +520,40 @@ function MLResults({ results }) {
                         margin={{ left: 100 }}
                     >
                         <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis type="number" domain={isClassification ? [ 0, 100 ] : [ 0, 1 ]} />
+                        <XAxis type="number" domain={isClassification ? [ 0, 100 ] : isClustering ? [ -1, 1 ] : [ 0, 1 ]} />
                         <YAxis dataKey="name" type="category" width={100} tick={{ fontSize: 11 }} />
                         <Tooltip />
                         <Legend />
                         {isClassification ? (
                             <>
-                                <Bar dataKey="Accuracy" fill="#4f46e5" />
+                                <Bar dataKey="Accuracy">
+                                    {filteredModels.slice(0, 10).map((model, index) => {
+                                        const meets = modelMeetsBusinessTarget(model)
+                                        const fill = meets == null ? '#4f46e5' : (meets ? '#16a34a' : '#d97706')
+                                        return <Cell key={`acc-cell-${index}`} fill={fill} />
+                                    })}
+                                </Bar>
                                 <Bar dataKey="F1" fill="#ec4899" />
+                            </>
+                        ) : isClustering ? (
+                            <>
+                                <Bar dataKey="Silhouette">
+                                    {filteredModels.slice(0, 10).map((model, index) => {
+                                        const meets = modelMeetsBusinessTarget(model)
+                                        const fill = meets == null ? '#4f46e5' : (meets ? '#16a34a' : '#d97706')
+                                        return <Cell key={`sil-cell-${index}`} fill={fill} />
+                                    })}
+                                </Bar>
                             </>
                         ) : (
                             <>
-                                <Bar dataKey="R²" fill="#4f46e5" />
+                                <Bar dataKey="R²">
+                                    {filteredModels.slice(0, 10).map((model, index) => {
+                                        const meets = modelMeetsBusinessTarget(model)
+                                        const fill = meets == null ? '#4f46e5' : (meets ? '#16a34a' : '#d97706')
+                                        return <Cell key={`r2-cell-${index}`} fill={fill} />
+                                    })}
+                                </Bar>
                             </>
                         )}
                     </BarChart>
@@ -321,9 +588,18 @@ function MLResults({ results }) {
                                     <p className="text-sm text-gray-500">
                                         {isClassification
                                             ? `Accuracy: ${(model.accuracy * 100).toFixed(2)}% | F1: ${(model.f1 * 100).toFixed(2)}%`
-                                            : `R²: ${model.r2?.toFixed(4)} | RMSE: ${model.rmse?.toFixed(4)} | MAE: ${model.mae?.toFixed(4)}`
+                                            : isClustering
+                                                ? `Silhouette: ${(model.silhouette ?? 0).toFixed(3)} | Calinski: ${(model.calinski_harabasz ?? 0).toFixed(1)}`
+                                                : `R²: ${model.r2?.toFixed(4)} | RMSE: ${model.rmse?.toFixed(4)} | MAE: ${model.mae?.toFixed(4)}`
                                         }
                                     </p>
+                                    {!isClustering && (model.cv_mean != null || model.cv_std != null) && (
+                                        <p className="text-xs text-slate-500">
+                                            CV: {model.cv_mean != null ? Number(model.cv_mean).toFixed(4) : 'N/A'}
+                                            {' '}±{' '}
+                                            {model.cv_std != null ? Number(model.cv_std).toFixed(4) : 'N/A'}
+                                        </p>
+                                    )}
                                 </div>
                             </div>
                             <div className="flex items-center gap-2">
@@ -344,6 +620,13 @@ function MLResults({ results }) {
                                                 <MetricCard label="Recall" value={`${(model.recall * 100).toFixed(2)}%`} />
                                                 <MetricCard label="F1 Score" value={`${(model.f1 * 100).toFixed(2)}%`} />
                                             </>
+                                        ) : isClustering ? (
+                                            <>
+                                                <MetricCard label="Silhouette" value={(model.silhouette ?? 0).toFixed(4)} />
+                                                <MetricCard label="Inertia" value={model.inertia != null ? Number(model.inertia).toFixed(2) : 'N/A'} />
+                                                <MetricCard label="Calinski-Harabasz" value={(model.calinski_harabasz ?? 0).toFixed(2)} />
+                                                <MetricCard label="Davies-Bouldin" value={(model.davies_bouldin ?? 0).toFixed(4)} />
+                                            </>
                                         ) : (
                                             <>
                                                 <MetricCard label="R² Score" value={model.r2?.toFixed(4)} />
@@ -354,6 +637,18 @@ function MLResults({ results }) {
                                         )}
                                     </div>
                                 </div>
+
+                                {model.tuning?.applied && (
+                                    <div>
+                                        <p className="text-sm font-semibold text-gray-900 mb-2">Hyperparameter Tuning</p>
+                                        <div className="rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-700 space-y-1">
+                                            <p><span className="font-semibold">Strategy:</span> {model.tuning.strategy || 'N/A'}</p>
+                                            <p><span className="font-semibold">Best CV Score:</span> {model.tuning.best_score != null ? Number(model.tuning.best_score).toFixed(4) : 'N/A'}</p>
+                                            <p><span className="font-semibold">Candidates:</span> {model.tuning.candidate_count ?? 'N/A'}</p>
+                                            <p><span className="font-semibold">Best Params:</span> {model.tuning.best_params ? JSON.stringify(model.tuning.best_params) : 'N/A'}</p>
+                                        </div>
+                                    </div>
+                                )}
 
                                 {results.featureImportance && results.featureImportance.length > 0 && (
                                     <div>

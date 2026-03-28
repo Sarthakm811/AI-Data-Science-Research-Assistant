@@ -125,17 +125,6 @@ Your Auto EDA now includes **professional, interactive visualizations** like ind
 
 ---
 
-### 5. TIME SERIES (Auto-detected)
-
-#### Time Series Line Plot
-- Original data line
-- Rolling average overlay
-- Trend visualization
-- Interactive zoom
-- **Location:** Enterprise EDA (if datetime detected)
-
----
-
 ## 🎯 How to Use
 
 ### Quick EDA Mode
@@ -219,9 +208,6 @@ create_category_target_relationship() # Category vs target
 # Multivariate
 create_scatter_matrix()             # Pairwise scatter plots
 create_pairplot_plotly()            # Interactive pairplot
-
-# Time Series
-create_time_series_plot()           # Time series with MA
 ```
 
 ---
@@ -266,9 +252,8 @@ create_time_series_plot()           # Time series with MA
 | Pie Chart | Category distribution | ✅ | Both |
 | Bar Chart | Category-target relationship | ✅ | Both |
 | Scatter Matrix | Pairwise relationships | ✅ | Enterprise |
-| Line Chart | Time series trends | ✅ | Enterprise |
 
-**Total:** 13 different chart types
+**Total:** 12 different chart types
 
 ---
 

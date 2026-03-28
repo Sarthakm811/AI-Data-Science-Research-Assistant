@@ -206,7 +206,6 @@ streamlit run streamlit_enhanced.py --server.address 0.0.0.0
 
 ## 🔮 Coming Soon
 
-- Time series analysis
 - NLP text analysis
 - Deep learning models
 - Advanced visualizations
