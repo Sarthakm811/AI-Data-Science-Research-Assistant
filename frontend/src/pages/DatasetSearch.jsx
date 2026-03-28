@@ -144,7 +144,16 @@ function DatasetSearch({ setDataset }) {
                 body: formData
             })
 
-            if (!response.ok) throw new Error('Upload failed')
+            if (!response.ok) {
+                let message = 'Upload failed'
+                try {
+                    const payload = await response.json()
+                    message = payload?.detail || payload?.error || message
+                } catch {
+                    // Ignore parse errors and keep fallback message.
+                }
+                throw new Error(message)
+            }
             const data = await response.json()
 
             setDataset(data)

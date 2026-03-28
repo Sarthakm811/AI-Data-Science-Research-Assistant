@@ -80,12 +80,44 @@ eda_engine = EDAEngine()
 def read_uploaded_dataframe(file: UploadFile, content: bytes) -> pd.DataFrame:
     """Read CSV/XLSX or JPG/PNG upload into a dataframe."""
     filename = (file.filename or "").lower()
+    content_type = (file.content_type or "").lower()
+
     if filename.endswith(".csv"):
         return pd.read_csv(io.BytesIO(content))
     if filename.endswith((".xlsx", ".xls")):
         return pd.read_excel(io.BytesIO(content))
     if filename.endswith((".jpg", ".jpeg", ".png")):
         return _image_to_dataframe(file, content)
+
+    # Fallback by MIME type when browser uploads omit filename extensions.
+    if "csv" in content_type or content_type == "text/plain":
+        try:
+            return pd.read_csv(io.BytesIO(content))
+        except Exception:
+            pass
+    if "spreadsheet" in content_type or "excel" in content_type:
+        try:
+            return pd.read_excel(io.BytesIO(content))
+        except Exception:
+            pass
+    if content_type.startswith("image/"):
+        return _image_to_dataframe(file, content)
+
+    # Fallback by content sniffing.
+    signature = content[:8]
+    if signature.startswith(b"\x89PNG") or signature.startswith(b"\xFF\xD8"):
+        return _image_to_dataframe(file, content)
+
+    try:
+        return pd.read_csv(io.BytesIO(content))
+    except Exception:
+        pass
+
+    try:
+        return pd.read_excel(io.BytesIO(content))
+    except Exception:
+        pass
+
     raise HTTPException(status_code=400, detail="Unsupported file format. Use CSV, XLSX, XLS, JPG, JPEG, or PNG.")
 
 

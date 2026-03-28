@@ -23,14 +23,21 @@ function Header({ dataset, setDataset, toggleSidebar, isMobile }) {
             })
 
             if (!response.ok) {
-                throw new Error('Upload failed')
+                let message = 'Upload failed'
+                try {
+                    const payload = await response.json()
+                    message = payload?.detail || payload?.error || message
+                } catch {
+                    // Ignore parse errors and keep generic message.
+                }
+                throw new Error(message)
             }
 
             const data = await response.json()
             setDataset(data)
         } catch (err) {
             console.error(err)
-            window.alert('Upload failed. Please use CSV, XLSX, XLS, JPG, JPEG, or PNG.')
+            window.alert(err?.message || 'Upload failed. Please use CSV, XLSX, XLS, JPG, JPEG, or PNG.')
         } finally {
             setUploading(false)
         }

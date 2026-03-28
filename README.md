@@ -1,149 +1,130 @@
-# 🤖 AI Data Science Research Assistant
+# AI Data Science Research Assistant
 
-**Your Personal AI Data Scientist** - Built with Streamlit + Gemini AI
+Production-ready data science assistant with:
+- FastAPI backend for dataset processing, EDA, ML, statistics, and reporting
+- React + Vite frontend for interactive workflows
+- Optional Express fallback server in frontend/server.js
 
-Analyze datasets, build ML models, and get professional insights with just a few clicks!
+## Architecture
 
-## 🔐 Prerequisites
+- frontend: React app (Vite)
+- backend: FastAPI API and ML/EDA runtime
+- infra: Kubernetes deployment manifests
+- docs: additional project documentation
 
-Before running the app, you need to obtain API credentials:
+## Core Features
 
-### 1. **Gemini API Key** (Required for AI Chat)
-- Visit: https://makersuite.google.com/app/apikey
-- Click "Create API Key"
-- Copy your API key
+- Dataset upload and management
+- Auto EDA and rich visual summaries
+- Auto ML training and model comparison
+- Statistics and mathematics lab (tests, confidence intervals, A/B, Bayesian, ARIMA/SARIMA)
+- Feature engineering and data cleaning workflows
+- Report generation with integrated insights
 
-### 2. **Kaggle Credentials** (Required for Dataset Search)
-- Visit: https://www.kaggle.com/settings/account
-- Scroll to "API" section
-- Click "Create New Token"
-- Download `kaggle.json` file
-- Copy username and key from the file
+## Security Model
 
-## ⚡ Quick Start
+Runtime API is protected by:
+- X-API-Key header
+- X-Tenant-Id header
 
-### 1. Install Dependencies
+Backend defaults enforce:
+- API key validation
+- tenant isolation in in-memory runtime stores
+- code execution disabled unless explicitly enabled
+
+## Local Development
+
+### 1. Backend setup
+
+From repository root:
+
 ```bash
-pip install -r requirements-streamlit.txt
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r backend/requirements.txt
 ```
 
-### 2. Run the Application
-```bash
-streamlit run streamlit_enhanced.py
-```
-Or double-click: **START.bat** (Windows)
+Create backend/.env (or edit existing) with at least:
 
-### 3. Open in Browser
-Navigate to: **http://localhost:8501**
-
-### 4. Configure API Keys
-In the sidebar, enter:
-- **Gemini API Key** - For AI-powered insights
-- **Kaggle Username** - For dataset search
-- **Kaggle API Key** - For dataset downloads
-
-> 💡 **Note:** Your credentials are only stored in your browser session and are never saved to disk.
-
-## ✨ Features
-
-### 🔍 Dataset Search
-- Search Kaggle datasets
-- One-click download
-- Upload your own CSV
-
-### 📊 Auto EDA
-- Summary statistics
-- Missing data analysis
-- Correlation heatmap
-- Distribution plots
-- Outlier detection
-- 5+ visualizations
-
-### 🤖 Auto ML
-- Train multiple models
-- Compare performance
-- Best model selection
-- Accuracy metrics
-
-### 💬 AI Chat
-- Ask questions in plain English
-- Get professional insights
-- Powered by Gemini AI
-
-### 📄 Reports
-- Generate markdown reports
-- Export Python code
-- Downloadable files
-
-## 💡 Example Usage
-
-1. **Search "titanic"** → Download dataset
-2. **Run Auto EDA** → Get comprehensive analysis
-3. **Run Auto ML** → Compare models
-4. **Chat with AI** → Get insights
-5. **Generate Report** → Download
-
-## 🎓 Perfect For
-
-✅ College assignments
-✅ Research papers
-✅ Interview prep
-✅ Portfolio projects
-✅ Quick data analysis
-
-## 📚 Documentation
-
-- **[README_FIRST.md](README_FIRST.md)** - Quick welcome
-- **[00_START_HERE.md](00_START_HERE.md)** - Getting started
-- **[STREAMLIT_SETUP.md](STREAMLIT_SETUP.md)** - Complete setup
-- **[STREAMLIT_FEATURES.md](STREAMLIT_FEATURES.md)** - All features
-- **[FEATURES.md](FEATURES.md)** - Detailed features
-
-## 🐛 Troubleshooting
-
-**Installation issues:**
-```bash
-pip install --upgrade pip
-pip install -r requirements-streamlit.txt
+```env
+GEMINI_API_KEY=your_gemini_key
+SECRET_KEY=your_strong_secret
+ENFORCE_API_KEY=true
+ENFORCE_TENANT_ISOLATION=true
+ALLOW_CODE_EXECUTION=false
 ```
 
-**Port in use:**
+Run backend:
+
 ```bash
-streamlit run streamlit_enhanced.py --server.port 8502
+uvicorn backend.app.main:app --host 0.0.0.0 --port 8000
 ```
 
-**API errors:**
-- Check Gemini key at ai.google.dev
-- Check Kaggle credentials at kaggle.com/settings
+### 2. Frontend setup
 
-## 🚀 Deployment
+```bash
+npm --prefix frontend install
+npm --prefix frontend run dev
+```
 
-### Streamlit Cloud (Free!)
-1. Push to GitHub
-2. Go to share.streamlit.io
-3. Connect repository
-4. Add API keys as secrets
-5. Deploy!
+Use frontend/.env.development:
 
-## 🔧 Tech Stack
+```env
+VITE_API_URL=http://localhost:8000
+VITE_API_KEY=match_backend_secret_key
+VITE_TENANT_ID=local-dev-tenant
+```
 
-- Streamlit - Web framework
-- Gemini AI - AI insights
-- Kaggle API - Dataset access
-- Pandas & NumPy - Data processing
-- Scikit-learn - Machine learning
-- Matplotlib & Seaborn - Visualizations
+## Testing and Validation
 
-## 📝 License
+From repository root:
 
-MIT License
+```bash
+pytest -q
+npm --prefix frontend run build
+```
 
----
+## Deployment
 
-**Start now:** `streamlit run streamlit_enhanced.py`
+### Backend
 
-**Or:** Double-click `START.bat`
+- Container deployment supported via infra/k8s
+- Ensure SECRET_KEY and DATABASE_URL are provided from secrets
+- Keep ALLOW_CODE_EXECUTION=false unless you have strong sandbox isolation
 
-**Then:** Open http://localhost:8501
+### Frontend (Vercel)
 
-🚀 **Happy analyzing!**
+Root vercel.json is configured for monorepo deployment:
+- installCommand: npm --prefix frontend install
+- buildCommand: npm --prefix frontend run build
+- outputDirectory: frontend/dist
+
+Set Vercel environment variables:
+- VITE_API_URL
+- VITE_API_KEY
+- VITE_TENANT_ID
+
+## Environment Variables Reference
+
+Backend important vars:
+- GEMINI_API_KEY
+- SECRET_KEY
+- ENFORCE_API_KEY
+- ENFORCE_TENANT_ISOLATION
+- ALLOW_CODE_EXECUTION
+- DATABASE_URL
+- REDIS_URL
+
+Frontend important vars:
+- VITE_API_URL
+- VITE_API_KEY
+- VITE_TENANT_ID
+
+## Notes
+
+- frontend/server.js is optional and intended for local fallback/testing paths.
+- Primary production API should be backend/app/main.py FastAPI service.
+
+## License
+
+MIT
