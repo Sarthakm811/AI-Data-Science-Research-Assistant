@@ -1,0 +1,35 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: dsra-backend
+    ports:
+      - "8000:8000"
+    environment:
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-dev_key_placeholder}
+      KAGGLE_USERNAME: ${KAGGLE_USERNAME:-}
+      KAGGLE_KEY: ${KAGGLE_KEY:-}
+      REDIS_URL: ${REDIS_URL:-redis://host.docker.internal:6379}
+      DATABASE_URL: ${DATABASE_URL:-sqlite:///./app.db}
+      SECRET_KEY: ${SECRET_KEY:-dev-local-9f4e1d2c7a8b3f6e}
+      ENFORCE_API_KEY: ${ENFORCE_API_KEY:-true}
+      ENFORCE_TENANT_ISOLATION: ${ENFORCE_TENANT_ISOLATION:-true}
+      ALLOW_CODE_EXECUTION: ${ALLOW_CODE_EXECUTION:-false}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
+        VITE_API_KEY: ${VITE_API_KEY:-dev-local-9f4e1d2c7a8b3f6e}
+        VITE_TENANT_ID: ${VITE_TENANT_ID:-prod-tenant-1}
+    container_name: dsra-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
