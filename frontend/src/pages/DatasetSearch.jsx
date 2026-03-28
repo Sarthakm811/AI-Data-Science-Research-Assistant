@@ -3,6 +3,14 @@ import { Search, Download, Upload, Loader, AlertCircle, CheckCircle, Key, Settin
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || ''
 
+function ensureApiConfigured() {
+    const base = String(API_BASE_URL || '').trim()
+    if (!base || base.includes('your-backend-url.onrender.com')) {
+        throw new Error('Frontend API is not configured. Set VITE_API_URL to your backend URL in Vercel project settings.')
+    }
+    return base
+}
+
 function DatasetSearch({ setDataset }) {
     const [ searchQuery, setSearchQuery ] = useState('')
     const [ results, setResults ] = useState([])
@@ -51,7 +59,8 @@ function DatasetSearch({ setDataset }) {
         setResults([])
 
         try {
-            const response = await fetch(`${API_BASE_URL}/api/kaggle/search`, {
+            const apiBase = ensureApiConfigured()
+            const response = await fetch(`${apiBase}/api/kaggle/search`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -84,7 +93,8 @@ function DatasetSearch({ setDataset }) {
         setError(null)
 
         try {
-            const response = await fetch(`${API_BASE_URL}/api/kaggle/download`, {
+            const apiBase = ensureApiConfigured()
+            const response = await fetch(`${apiBase}/api/kaggle/download`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -136,10 +146,11 @@ function DatasetSearch({ setDataset }) {
         setUploadError(null)
 
         try {
+            const apiBase = ensureApiConfigured()
             const formData = new FormData()
             formData.append('file', selectedFile)
 
-            const response = await fetch(`${API_BASE_URL}/api/dataset/upload`, {
+            const response = await fetch(`${apiBase}/api/dataset/upload`, {
                 method: 'POST',
                 body: formData
             })

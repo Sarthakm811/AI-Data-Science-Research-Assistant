@@ -3,6 +3,14 @@ import { Menu, Upload, Database, X } from 'lucide-react'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || ''
 
+function ensureApiConfigured() {
+    const base = String(API_BASE_URL || '').trim()
+    if (!base || base.includes('your-backend-url.onrender.com')) {
+        throw new Error('Frontend API is not configured. Set VITE_API_URL to your backend URL in Vercel project settings.')
+    }
+    return base
+}
+
 function Header({ dataset, setDataset, toggleSidebar, isMobile }) {
     const [ uploading, setUploading ] = useState(false)
     const fileInputRef = useRef(null)
@@ -14,10 +22,11 @@ function Header({ dataset, setDataset, toggleSidebar, isMobile }) {
         setUploading(true)
 
         try {
+            const apiBase = ensureApiConfigured()
             const formData = new FormData()
             formData.append('file', file)
 
-            const response = await fetch(`${API_BASE_URL}/api/dataset/upload`, {
+            const response = await fetch(`${apiBase}/api/dataset/upload`, {
                 method: 'POST',
                 body: formData
             })
