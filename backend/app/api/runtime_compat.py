@@ -13,12 +13,13 @@ import pickle
 import re
 import time
 import uuid
+from contextlib import contextmanager
 from typing import Any, Dict, List, Optional
 
 import joblib
 import numpy as np
 import pandas as pd
-from fastapi import APIRouter, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel, ConfigDict, Field
 from scipy.stats import beta as beta_distribution, chi2_contingency, f_oneway, norm, t, ttest_ind
 from sklearn.base import clone
@@ -48,6 +49,7 @@ from statsmodels.tsa.statespace.sarimax import SARIMAX
 from starlette.responses import StreamingResponse
 
 from app.explainability import ModelExplainer
+from app.security import bind_tenant_context, require_api_key
 from app.runtime_state import (
     CHAT_HISTORY,
     DATASETS,
@@ -59,7 +61,7 @@ from app.runtime_state import (
 )
 from app.preprocessing import DataPreprocessor
 
-router = APIRouter(tags=["runtime"])
+router = APIRouter(tags=["runtime"], dependencies=[Depends(require_api_key), Depends(bind_tenant_context)])
 
 
 class TrainRequest(BaseModel):
@@ -206,6 +208,27 @@ DEFAULT_STOPWORDS = {
     "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "has", "he", "in", "is",
     "it", "its", "of", "on", "that", "the", "to", "was", "were", "will", "with", "or", "not",
 }
+
+
+@contextmanager
+def _temporary_kaggle_credentials(username: Optional[str], key: Optional[str]):
+    original_username = os.environ.get("KAGGLE_USERNAME")
+    original_key = os.environ.get("KAGGLE_KEY")
+    try:
+        if username and key:
+            os.environ["KAGGLE_USERNAME"] = username
+            os.environ["KAGGLE_KEY"] = key
+        yield
+    finally:
+        if original_username is None:
+            os.environ.pop("KAGGLE_USERNAME", None)
+        else:
+            os.environ["KAGGLE_USERNAME"] = original_username
+
+        if original_key is None:
+            os.environ.pop("KAGGLE_KEY", None)
+        else:
+            os.environ["KAGGLE_KEY"] = original_key
 
 
 def _infer_task_type(df: pd.DataFrame, y_columns: List[str], preferred: str = "auto") -> str:
@@ -1769,13 +1792,10 @@ def kaggle_search(req: KaggleSearchRequest) -> Dict[str, Any]:
     try:
         from kaggle.api.kaggle_api_extended import KaggleApi  # type: ignore[import-not-found]
 
-        if req.kaggle_username and req.kaggle_key:
-            os.environ["KAGGLE_USERNAME"] = req.kaggle_username
-            os.environ["KAGGLE_KEY"] = req.kaggle_key
-
-        api = KaggleApi()
-        api.authenticate()
-        datasets = api.dataset_list(search=req.query, page=req.page)
+        with _temporary_kaggle_credentials(req.kaggle_username, req.kaggle_key):
+            api = KaggleApi()
+            api.authenticate()
+            datasets = api.dataset_list(search=req.query, page=req.page)
         return {
             "datasets": [
                 {
@@ -1797,16 +1817,13 @@ def kaggle_download(req: KaggleDownloadRequest) -> Dict[str, Any]:
     try:
         from kaggle.api.kaggle_api_extended import KaggleApi  # type: ignore[import-not-found]
 
-        if req.kaggle_username and req.kaggle_key:
-            os.environ["KAGGLE_USERNAME"] = req.kaggle_username
-            os.environ["KAGGLE_KEY"] = req.kaggle_key
+        with _temporary_kaggle_credentials(req.kaggle_username, req.kaggle_key):
+            api = KaggleApi()
+            api.authenticate()
 
-        api = KaggleApi()
-        api.authenticate()
-
-        download_path = os.path.join("data", req.dataset_ref.replace("/", "_"))
-        os.makedirs(download_path, exist_ok=True)
-        api.dataset_download_files(req.dataset_ref, path=download_path, unzip=True)
+            download_path = os.path.join("data", req.dataset_ref.replace("/", "_"))
+            os.makedirs(download_path, exist_ok=True)
+            api.dataset_download_files(req.dataset_ref, path=download_path, unzip=True)
 
         csv_files = [f for f in os.listdir(download_path) if f.lower().endswith(".csv")]
         if not csv_files:

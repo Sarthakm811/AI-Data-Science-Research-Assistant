@@ -37,6 +37,20 @@ spec:
             secretKeyRef:
               name: api-secrets
               key: kaggle-key
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: api-secrets
+              key: database-url
+        - name: SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: api-secrets
+              key: app-secret-key
+        - name: ENFORCE_API_KEY
+          value: "true"
+        - name: ALLOW_CODE_EXECUTION
+          value: "false"
         resources:
           requests:
             memory: "512Mi"

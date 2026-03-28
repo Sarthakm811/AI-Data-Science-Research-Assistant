@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.runtime_compat import router as runtime_router
 from app.runtime_state import ml_engine
+from mcp.api_routes import router as mcp_router
 
 app = FastAPI(title="AI Data Science Assistant API", version="2.2.0")
 
@@ -27,12 +28,14 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=_allowed_origins(),
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-API-Key"],
+    max_age=600,
 )
 
 # Mount runtime compatibility/data/ML routes from dedicated module.
 app.include_router(runtime_router)
+app.include_router(mcp_router)
 
 
 @app.get("/")

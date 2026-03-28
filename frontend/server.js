@@ -7,16 +7,92 @@ const path = require('path');
 
 const app = express();
 const PORT = 8000;
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000')
+    .split(',')
+    .map(o => o.trim())
+    .filter(Boolean);
 
 // API key must be provided via environment variable.
 const API_KEY = process.env.OPENROUTER_API_KEY || '';
+const ACCESS_KEY = process.env.API_ACCESS_KEY || '';
+const MAX_REQUESTS_PER_MIN = Number(process.env.MAX_REQUESTS_PER_MIN || 120);
+
+const rateState = new Map();
+
+function rateLimitMiddleware(req, res, next) {
+    const now = Date.now();
+    const bucket = Math.floor(now / 60000);
+    const ip = (req.ip || req.socket?.remoteAddress || 'unknown').toString();
+    const key = `${ip}:${bucket}`;
+    const current = rateState.get(key) || 0;
+
+    if (current >= MAX_REQUESTS_PER_MIN) {
+        return res.status(429).json({ error: 'Too many requests. Please try again shortly.' });
+    }
+
+    rateState.set(key, current + 1);
+
+    // Opportunistic cleanup of old buckets.
+    if (rateState.size > 5000) {
+        for (const existingKey of rateState.keys()) {
+            if (!existingKey.endsWith(`:${bucket}`)) {
+                rateState.delete(existingKey);
+            }
+        }
+    }
+
+    next();
+}
+
+function securityHeaders(req, res, next) {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    next();
+}
 
 // Middleware
-app.use(cors());
-app.use(express.json());
+app.use(securityHeaders);
+app.use(rateLimitMiddleware);
+app.use(cors({
+    origin(origin, callback) {
+        if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+            return callback(null, true);
+        }
+        return callback(new Error('CORS blocked by policy'));
+    },
+    methods: [ 'GET', 'POST', 'DELETE', 'OPTIONS' ],
+    allowedHeaders: [ 'Content-Type', 'Authorization', 'X-API-Key' ],
+    credentials: false,
+}));
+app.use(express.json({ limit: '1mb' }));
+
+app.use('/api', (req, res, next) => {
+    if (req.path === '/health') {
+        return next();
+    }
+
+    if (!ACCESS_KEY) {
+        return next();
+    }
+
+    const received = req.header('X-API-Key');
+    if (!received || received !== ACCESS_KEY) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    next();
+});
 
 // File upload setup
-const upload = multer({ dest: 'uploads/' });
+const upload = multer({
+    dest: 'uploads/',
+    limits: {
+        fileSize: Number(process.env.MAX_UPLOAD_SIZE_BYTES || 10 * 1024 * 1024),
+        files: 1,
+    }
+});
 
 // Store datasets and results in memory
 let datasets = {};
@@ -54,6 +130,12 @@ app.post('/api/dataset/upload', upload.single('file'), (req, res) => {
             };
             fs.unlinkSync(req.file.path);
             res.json(datasets[ datasetId ]);
+        })
+        .on('error', (err) => {
+            if (req.file?.path && fs.existsSync(req.file.path)) {
+                fs.unlinkSync(req.file.path);
+            }
+            res.status(400).json({ error: `Failed to parse CSV: ${err.message}` });
         });
 });
 

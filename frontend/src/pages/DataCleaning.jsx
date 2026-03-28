@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react'
-import { Sparkles, Wand2, AlertCircle, CheckCircle2, SlidersHorizontal, Download } from 'lucide-react'
+import { Sparkles, Wand2, AlertCircle, CheckCircle2, SlidersHorizontal, Download, ChevronDown, ChevronUp } from 'lucide-react'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || ''
 const DEFAULT_STOPWORDS = new Set([
@@ -265,6 +265,16 @@ function DataCleaning({ dataset, setDataset }) {
     const [ cleanSummary, setCleanSummary ] = useState(null)
     const [ diffPreview, setDiffPreview ] = useState(null)
     const [ apiError, setApiError ] = useState(null)
+    const [ expandedModules, setExpandedModules ] = useState({
+        typeFixer: false,
+        textCleaner: false,
+        categoryStandardizer: false,
+        noiseSmoothing: false
+    })
+
+    const toggleModule = (moduleKey) => {
+        setExpandedModules((prev) => ({ ...prev, [ moduleKey ]: !prev[ moduleKey ] }))
+    }
 
     const applyPreset = () => {
         if (!selectedPreset || !CLEANING_PRESETS[ selectedPreset ]) return
@@ -791,9 +801,9 @@ function DataCleaning({ dataset, setDataset }) {
                                 <p className="mt-1 text-xs text-blue-800">{presetRecommendation.reason}</p>
                             </div>
                         )}
-                        <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+                        <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
                             <select
-                                className="input-field md:col-span-2"
+                                className="input-field lg:col-span-2"
                                 value={selectedPreset}
                                 onChange={(e) => setSelectedPreset(e.target.value)}
                             >
@@ -810,7 +820,7 @@ function DataCleaning({ dataset, setDataset }) {
                             >
                                 Apply Preset
                             </button>
-                            <div className="text-xs text-slate-500 md:col-span-1">
+                            <div className="text-xs text-slate-500 lg:col-span-1">
                                 {selectedPreset && CLEANING_PRESETS[ selectedPreset ]
                                     ? CLEANING_PRESETS[ selectedPreset ].description
                                     : 'Pick a profile to auto-fill common settings.'}
@@ -818,7 +828,7 @@ function DataCleaning({ dataset, setDataset }) {
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                         <div>
                             <label className="mb-2 block text-sm font-medium text-slate-700">Missing Value Strategy</label>
                             <select
@@ -880,17 +890,35 @@ function DataCleaning({ dataset, setDataset }) {
                             </label>
                         </div>
 
-                        <div className="md:col-span-2 rounded-xl border border-slate-200 bg-white p-4">
-                            <label className="mb-3 flex items-center gap-2 text-sm font-medium text-slate-700">
-                                <input
-                                    type="checkbox"
-                                    checked={config.typeFixerEnabled}
-                                    onChange={(e) => setConfig((prev) => ({ ...prev, typeFixerEnabled: e.target.checked }))}
-                                />
-                                Type Fixer (number/date/string coercion)
-                            </label>
-                            {config.typeFixerEnabled && (
-                                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                        <div className="lg:col-span-2 rounded-xl border border-slate-200 bg-white p-4">
+                            <div className="mb-3 flex items-center justify-between gap-2">
+                                <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                                    <input
+                                        type="checkbox"
+                                        checked={config.typeFixerEnabled}
+                                        onChange={(e) => {
+                                            const checked = e.target.checked
+                                            setConfig((prev) => ({ ...prev, typeFixerEnabled: checked }))
+                                            if (checked) {
+                                                setExpandedModules((prev) => ({ ...prev, typeFixer: true }))
+                                            }
+                                        }}
+                                    />
+                                    Type Fixer (number/date/string coercion)
+                                </label>
+                                <button
+                                    type="button"
+                                    onClick={() => toggleModule('typeFixer')}
+                                    className="btn-secondary px-3 py-1.5 text-xs"
+                                >
+                                    <span className="inline-flex items-center gap-1">
+                                        {expandedModules.typeFixer ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                                        {expandedModules.typeFixer ? 'Hide options' : 'Show options'}
+                                    </span>
+                                </button>
+                            </div>
+                            {config.typeFixerEnabled && expandedModules.typeFixer && (
+                                <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
                                     <div>
                                         <label className="mb-1 block text-xs font-medium text-slate-600">Number Columns (comma separated, blank=auto)</label>
                                         <input
@@ -945,7 +973,7 @@ function DataCleaning({ dataset, setDataset }) {
                                             placeholder="."
                                         />
                                     </div>
-                                    <label className="flex items-center gap-2 text-sm text-slate-700 md:col-span-2">
+                                    <label className="flex items-center gap-2 text-sm text-slate-700 lg:col-span-2">
                                         <input
                                             type="checkbox"
                                             checked={config.dateDayFirst}
@@ -957,18 +985,36 @@ function DataCleaning({ dataset, setDataset }) {
                             )}
                         </div>
 
-                        <div className="md:col-span-2 rounded-xl border border-slate-200 bg-white p-4">
-                            <label className="mb-3 flex items-center gap-2 text-sm font-medium text-slate-700">
-                                <input
-                                    type="checkbox"
-                                    checked={config.textCleanerEnabled}
-                                    onChange={(e) => setConfig((prev) => ({ ...prev, textCleanerEnabled: e.target.checked }))}
-                                />
-                                Text Cleaner (lowercase, punctuation, stopwords)
-                            </label>
-                            {config.textCleanerEnabled && (
-                                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                                    <div className="md:col-span-2">
+                        <div className="lg:col-span-2 rounded-xl border border-slate-200 bg-white p-4">
+                            <div className="mb-3 flex items-center justify-between gap-2">
+                                <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                                    <input
+                                        type="checkbox"
+                                        checked={config.textCleanerEnabled}
+                                        onChange={(e) => {
+                                            const checked = e.target.checked
+                                            setConfig((prev) => ({ ...prev, textCleanerEnabled: checked }))
+                                            if (checked) {
+                                                setExpandedModules((prev) => ({ ...prev, textCleaner: true }))
+                                            }
+                                        }}
+                                    />
+                                    Text Cleaner (lowercase, punctuation, stopwords)
+                                </label>
+                                <button
+                                    type="button"
+                                    onClick={() => toggleModule('textCleaner')}
+                                    className="btn-secondary px-3 py-1.5 text-xs"
+                                >
+                                    <span className="inline-flex items-center gap-1">
+                                        {expandedModules.textCleaner ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                                        {expandedModules.textCleaner ? 'Hide options' : 'Show options'}
+                                    </span>
+                                </button>
+                            </div>
+                            {config.textCleanerEnabled && expandedModules.textCleaner && (
+                                <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                                    <div className="lg:col-span-2">
                                         <label className="mb-1 block text-xs font-medium text-slate-600">Text Columns (comma separated, blank=all)</label>
                                         <input
                                             className="input-field"
@@ -993,7 +1039,7 @@ function DataCleaning({ dataset, setDataset }) {
                                         />
                                         Remove punctuation
                                     </label>
-                                    <label className="flex items-center gap-2 text-sm text-slate-700 md:col-span-2">
+                                    <label className="flex items-center gap-2 text-sm text-slate-700 lg:col-span-2">
                                         <input
                                             type="checkbox"
                                             checked={config.textRemoveStopwords}
@@ -1002,7 +1048,7 @@ function DataCleaning({ dataset, setDataset }) {
                                         Remove stopwords
                                     </label>
                                     {config.textRemoveStopwords && (
-                                        <div className="md:col-span-2">
+                                        <div className="lg:col-span-2">
                                             <label className="mb-1 block text-xs font-medium text-slate-600">Custom Stopwords (comma separated)</label>
                                             <input
                                                 className="input-field"
@@ -1016,17 +1062,35 @@ function DataCleaning({ dataset, setDataset }) {
                             )}
                         </div>
 
-                        <div className="md:col-span-2 rounded-xl border border-slate-200 bg-white p-4">
-                            <label className="mb-3 flex items-center gap-2 text-sm font-medium text-slate-700">
-                                <input
-                                    type="checkbox"
-                                    checked={config.categoryStandardizeEnabled}
-                                    onChange={(e) => setConfig((prev) => ({ ...prev, categoryStandardizeEnabled: e.target.checked }))}
-                                />
-                                Category Standardizer (case + mapping rules)
-                            </label>
-                            {config.categoryStandardizeEnabled && (
-                                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                        <div className="lg:col-span-2 rounded-xl border border-slate-200 bg-white p-4">
+                            <div className="mb-3 flex items-center justify-between gap-2">
+                                <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                                    <input
+                                        type="checkbox"
+                                        checked={config.categoryStandardizeEnabled}
+                                        onChange={(e) => {
+                                            const checked = e.target.checked
+                                            setConfig((prev) => ({ ...prev, categoryStandardizeEnabled: checked }))
+                                            if (checked) {
+                                                setExpandedModules((prev) => ({ ...prev, categoryStandardizer: true }))
+                                            }
+                                        }}
+                                    />
+                                    Category Standardizer (case + mapping rules)
+                                </label>
+                                <button
+                                    type="button"
+                                    onClick={() => toggleModule('categoryStandardizer')}
+                                    className="btn-secondary px-3 py-1.5 text-xs"
+                                >
+                                    <span className="inline-flex items-center gap-1">
+                                        {expandedModules.categoryStandardizer ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                                        {expandedModules.categoryStandardizer ? 'Hide options' : 'Show options'}
+                                    </span>
+                                </button>
+                            </div>
+                            {config.categoryStandardizeEnabled && expandedModules.categoryStandardizer && (
+                                <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
                                     <div>
                                         <label className="mb-1 block text-xs font-medium text-slate-600">Category Columns (comma separated, blank=all text)</label>
                                         <input
@@ -1049,7 +1113,7 @@ function DataCleaning({ dataset, setDataset }) {
                                             <option value="none">No case change</option>
                                         </select>
                                     </div>
-                                    <div className="md:col-span-2">
+                                    <div className="lg:col-span-2">
                                         <label className="mb-1 block text-xs font-medium text-slate-600">Mapping Rules JSON (optional)</label>
                                         <textarea
                                             className="input-field min-h-28"
@@ -1062,18 +1126,36 @@ function DataCleaning({ dataset, setDataset }) {
                             )}
                         </div>
 
-                        <div className="md:col-span-2 rounded-xl border border-slate-200 bg-white p-4">
-                            <label className="mb-3 flex items-center gap-2 text-sm font-medium text-slate-700">
-                                <input
-                                    type="checkbox"
-                                    checked={config.noiseSmoothingEnabled}
-                                    onChange={(e) => setConfig((prev) => ({ ...prev, noiseSmoothingEnabled: e.target.checked }))}
-                                />
-                                Noise Smoothing (rolling mean/median)
-                            </label>
-                            {config.noiseSmoothingEnabled && (
-                                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                                    <div className="md:col-span-2">
+                        <div className="lg:col-span-2 rounded-xl border border-slate-200 bg-white p-4">
+                            <div className="mb-3 flex items-center justify-between gap-2">
+                                <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                                    <input
+                                        type="checkbox"
+                                        checked={config.noiseSmoothingEnabled}
+                                        onChange={(e) => {
+                                            const checked = e.target.checked
+                                            setConfig((prev) => ({ ...prev, noiseSmoothingEnabled: checked }))
+                                            if (checked) {
+                                                setExpandedModules((prev) => ({ ...prev, noiseSmoothing: true }))
+                                            }
+                                        }}
+                                    />
+                                    Noise Smoothing (rolling mean/median)
+                                </label>
+                                <button
+                                    type="button"
+                                    onClick={() => toggleModule('noiseSmoothing')}
+                                    className="btn-secondary px-3 py-1.5 text-xs"
+                                >
+                                    <span className="inline-flex items-center gap-1">
+                                        {expandedModules.noiseSmoothing ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                                        {expandedModules.noiseSmoothing ? 'Hide options' : 'Show options'}
+                                    </span>
+                                </button>
+                            </div>
+                            {config.noiseSmoothingEnabled && expandedModules.noiseSmoothing && (
+                                <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+                                    <div className="lg:col-span-2">
                                         <label className="mb-1 block text-xs font-medium text-slate-600">Numeric Columns (comma separated, blank=all numeric)</label>
                                         <input
                                             className="input-field"

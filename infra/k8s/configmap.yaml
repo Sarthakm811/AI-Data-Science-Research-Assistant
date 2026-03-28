@@ -6,5 +6,4 @@ data:
   MAX_EXECUTION_TIME: "45"
   MAX_MEMORY_MB: "1536"
   REDIS_URL: "redis://redis-service:6379"
-  DATABASE_URL: "postgresql://postgres:postgres@postgres-service:5432/ds_agent"
   LOG_LEVEL: "INFO"

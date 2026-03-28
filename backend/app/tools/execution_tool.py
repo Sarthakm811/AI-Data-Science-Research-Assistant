@@ -21,6 +21,12 @@ class ExecutionTool:
     ) -> Dict[str, Any]:
         """Execute code safely and return results"""
 
+        if not settings.allow_code_execution:
+            return {
+                "status": "disabled",
+                "error": "Code execution is disabled by server policy. Set ALLOW_CODE_EXECUTION=true to enable.",
+            }
+
         # Create temp workspace
         with tempfile.TemporaryDirectory() as workdir:
             outputs_dir = os.path.join(workdir, "outputs")

@@ -4,7 +4,9 @@ Shared in-memory runtime state for API routers.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from collections.abc import Iterator, MutableMapping
+from contextvars import ContextVar, Token
+from typing import Any, Dict, List, TypeVar, Generic
 import io
 
 import pandas as pd
@@ -16,11 +18,59 @@ from app.eda_engine import EDAEngine
 from app.ml_engine import MLEngine
 from app.preprocessing import DataPreprocessor
 
+K = TypeVar("K")
+V = TypeVar("V")
+
+_CURRENT_TENANT: ContextVar[str] = ContextVar("current_tenant", default="public")
+
+
+def get_current_tenant() -> str:
+    return _CURRENT_TENANT.get()
+
+
+def set_current_tenant(tenant_id: str) -> Token:
+    return _CURRENT_TENANT.set(tenant_id)
+
+
+def reset_tenant(token: Token) -> None:
+    _CURRENT_TENANT.reset(token)
+
+
+class TenantScopedDict(MutableMapping[K, V], Generic[K, V]):
+    """Dictionary facade that isolates state per tenant context."""
+
+    def __init__(self):
+        self._store: Dict[str, Dict[K, V]] = {}
+
+    def _bucket(self) -> Dict[K, V]:
+        tenant = get_current_tenant()
+        if tenant not in self._store:
+            self._store[tenant] = {}
+        return self._store[tenant]
+
+    def __getitem__(self, key: K) -> V:
+        return self._bucket()[key]
+
+    def __setitem__(self, key: K, value: V) -> None:
+        self._bucket()[key] = value
+
+    def __delitem__(self, key: K) -> None:
+        del self._bucket()[key]
+
+    def __iter__(self) -> Iterator[K]:
+        return iter(self._bucket())
+
+    def __len__(self) -> int:
+        return len(self._bucket())
+
+    def clear_all(self) -> None:
+        self._store.clear()
+
 # In-memory runtime stores
-DATASETS: Dict[str, pd.DataFrame] = {}
-TRAINED_MODELS: Dict[str, Dict[str, Any]] = {}
-PREPROCESSORS: Dict[str, DataPreprocessor] = {}
-CHAT_HISTORY: Dict[str, List[Dict[str, str]]] = {}
+DATASETS: TenantScopedDict[str, pd.DataFrame] = TenantScopedDict()
+TRAINED_MODELS: TenantScopedDict[str, Dict[str, Any]] = TenantScopedDict()
+PREPROCESSORS: TenantScopedDict[str, DataPreprocessor] = TenantScopedDict()
+CHAT_HISTORY: TenantScopedDict[str, List[Dict[str, str]]] = TenantScopedDict()
 
 # Engines
 ml_engine = MLEngine()
