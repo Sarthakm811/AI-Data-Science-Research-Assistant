@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react'
+import React, { useState, useMemo, useEffect, useRef } from 'react'
 import { BarChart3, PieChart, TrendingUp, AlertCircle, CheckCircle, Activity, Zap, Target, Eye, Lightbulb, ArrowUp, ArrowDown, Minus, Filter, Download, RefreshCw } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartsPie, Pie, Cell, LineChart, Line, ScatterChart, Scatter, AreaChart, Area, RadialBarChart, RadialBar, Legend, ComposedChart } from 'recharts'
 import { useAnalysis } from '../context/AnalysisContext'
@@ -153,6 +153,36 @@ function scoreBusinessAnswerConfidence(question, results) {
     return { label: 'Low', score: 48, tone: 'red' }
 }
 
+function toNumber(value) {
+    const n = Number.parseFloat(value)
+    return Number.isFinite(n) ? n : null
+}
+
+function looksLikeDate(value) {
+    if (value === null || value === undefined || value === '') return false
+    const parsed = new Date(value)
+    return !Number.isNaN(parsed.getTime())
+}
+
+function inferDateColumns(headers, rows) {
+    const sampleRows = rows.slice(0, 80)
+    return headers.filter((col) => {
+        const values = sampleRows
+            .map((r) => r[ col ])
+            .filter((v) => v !== null && v !== undefined && String(v).trim() !== '')
+        if (!values.length) return false
+        const valid = values.filter((v) => looksLikeDate(v)).length
+        return valid / values.length >= 0.7
+    })
+}
+
+function pickNumericByKeyword(numericColumns, keywords) {
+    const lowered = numericColumns.map((c) => c.toLowerCase())
+    const found = lowered.find((col) => keywords.some((k) => col.includes(k)))
+    if (!found) return null
+    return numericColumns.find((c) => c.toLowerCase() === found) || null
+}
+
 function AutoEDA({ dataset }) {
     const [ analyzing, setAnalyzing ] = useState(false)
     const [ results, setResults ] = useState(null)
@@ -169,6 +199,11 @@ function AutoEDA({ dataset }) {
     const [ hypothesisFeature1, setHypothesisFeature1 ] = useState('')
     const [ hypothesisFeature2, setHypothesisFeature2 ] = useState('')
     const [ hypothesisResult, setHypothesisResult ] = useState(null)
+    const [ vizChartType, setVizChartType ] = useState('bar')
+    const [ vizXColumn, setVizXColumn ] = useState('')
+    const [ vizYColumn, setVizYColumn ] = useState('')
+    const [ vizAggregation, setVizAggregation ] = useState('mean')
+    const vizChartRef = useRef(null)
     const { setEdaResults } = useAnalysis()
 
     useEffect(() => {
@@ -302,6 +337,212 @@ function AutoEDA({ dataset }) {
                     valueCounts[ val ] = (valueCounts[ val ] || 0) + 1
                 })
                 const sorted = Object.entries(valueCounts).sort((a, b) => b[ 1 ] - a[ 1 ])
+
+                const dateColumns = inferDateColumns(dataset.headers, dataset.rows)
+                const primaryDateColumn = dateColumns[ 0 ] || null
+                const revenueColumn = pickNumericByKeyword(numericCols, [ 'revenue', 'sales', 'amount', 'price', 'value', 'total' ])
+                const customerColumn = categoricalCols.find((c) => /customer|client|user|account|buyer|member/i.test(c)) || null
+                const regionColumn = categoricalCols.find((c) => /region|country|state|city|territory|zone/i.test(c)) || null
+                const productColumn = categoricalCols.find((c) => /product|category|item|sku|brand|segment/i.test(c)) || null
+
+                const trendInsights = []
+                if (primaryDateColumn) {
+                    const monthly = {}
+                    dataset.rows.forEach((row) => {
+                        const d = new Date(row[ primaryDateColumn ])
+                        if (Number.isNaN(d.getTime())) return
+
+                        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+                        if (!monthly[ key ]) monthly[ key ] = { count: 0, metric: 0 }
+                        monthly[ key ].count += 1
+
+                        const metric = toNumber(row[ revenueColumn || numericCols[ 0 ] ])
+                        if (metric !== null) monthly[ key ].metric += metric
+                    })
+
+                    const orderedMonths = Object.entries(monthly).sort((a, b) => a[ 0 ].localeCompare(b[ 0 ]))
+                    if (orderedMonths.length >= 2) {
+                        const first = orderedMonths[ 0 ][ 1 ].count
+                        const last = orderedMonths[ orderedMonths.length - 1 ][ 1 ].count
+                        const growth = first > 0 ? ((last - first) / first) * 100 : 0
+                        trendInsights.push({
+                            title: 'Monthly Activity Trend',
+                            detail: `Activity changed by ${growth.toFixed(1)}% from ${orderedMonths[ 0 ][ 0 ]} to ${orderedMonths[ orderedMonths.length - 1 ][ 0 ]}.`,
+                            confidence: Math.abs(growth) > 15 ? 'High' : 'Medium'
+                        })
+
+                        const peak = orderedMonths
+                            .map(([ month, data ]) => ({ month, value: revenueColumn ? data.metric : data.count }))
+                            .sort((a, b) => b.value - a.value)[ 0 ]
+                        if (peak) {
+                            trendInsights.push({
+                                title: 'Peak Period',
+                                detail: `${peak.month} is the strongest period based on ${revenueColumn ? revenueColumn : 'activity volume'}.`,
+                                confidence: 'High'
+                            })
+                        }
+                    }
+
+                    const byMonthOfYear = Array(12).fill(0)
+                    dataset.rows.forEach((row) => {
+                        const d = new Date(row[ primaryDateColumn ])
+                        if (!Number.isNaN(d.getTime())) {
+                            byMonthOfYear[ d.getMonth() ] += 1
+                        }
+                    })
+                    const maxMoY = Math.max(...byMonthOfYear)
+                    const minMoY = Math.min(...byMonthOfYear)
+                    if (maxMoY > 0 && (maxMoY - minMoY) / maxMoY > 0.35) {
+                        const peakMonth = byMonthOfYear.indexOf(maxMoY)
+                        const monthName = new Date(2026, peakMonth, 1).toLocaleString('en-US', { month: 'long' })
+                        trendInsights.push({
+                            title: 'Seasonality Signal',
+                            detail: `Potential seasonality detected with peak activity around ${monthName}.`,
+                            confidence: 'Medium'
+                        })
+                    }
+                }
+
+                const segmentationInsights = []
+                const segmentationColumns = [ customerColumn, productColumn, regionColumn ].filter(Boolean)
+                const segmentMetricColumn = revenueColumn || numericCols[ 0 ] || null
+                segmentationColumns.slice(0, 3).forEach((col) => {
+                    const buckets = {}
+                    dataset.rows.forEach((row) => {
+                        const key = String(row[ col ] ?? 'Missing').trim() || 'Missing'
+                        if (!buckets[ key ]) buckets[ key ] = { count: 0, metric: 0 }
+                        buckets[ key ].count += 1
+                        const metric = segmentMetricColumn ? toNumber(row[ segmentMetricColumn ]) : null
+                        if (metric !== null) buckets[ key ].metric += metric
+                    })
+
+                    const values = Object.entries(buckets)
+                        .map(([ key, v ]) => ({ key, count: v.count, metric: v.metric }))
+                        .sort((a, b) => (segmentMetricColumn ? b.metric - a.metric : b.count - a.count))
+
+                    if (!values.length) return
+                    const total = values.reduce((acc, v) => acc + (segmentMetricColumn ? v.metric : v.count), 0)
+                    const top = values[ 0 ]
+                    const second = values[ 1 ]
+
+                    if (total > 0) {
+                        const topShare = ((segmentMetricColumn ? top.metric : top.count) / total) * 100
+                        segmentationInsights.push({
+                            title: `${col} Leaders`,
+                            detail: `${top.key} contributes ${topShare.toFixed(1)}% of ${segmentMetricColumn || 'records'} in this dataset.`,
+                            confidence: topShare >= 40 ? 'High' : 'Medium'
+                        })
+                    }
+
+                    if (second) {
+                        const topVal = segmentMetricColumn ? top.metric : top.count
+                        const secondVal = segmentMetricColumn ? second.metric : second.count
+                        if (secondVal > 0) {
+                            segmentationInsights.push({
+                                title: `${col} Comparison`,
+                                detail: `${top.key} performs ${(topVal / secondVal).toFixed(2)}x compared with ${second.key}.`,
+                                confidence: 'Medium'
+                            })
+                        }
+                    }
+
+                    if (/customer|client|user|account|buyer|member/i.test(col) && values.length >= 5 && total > 0) {
+                        const topN = Math.max(1, Math.ceil(values.length * 0.2))
+                        const topSlice = values.slice(0, topN)
+                        const topTotal = topSlice.reduce((acc, v) => acc + (segmentMetricColumn ? v.metric : v.count), 0)
+                        const share = (topTotal / total) * 100
+                        if (share >= 70) {
+                            segmentationInsights.push({
+                                title: 'Pareto-Like Segment Pattern',
+                                detail: `Top 20% ${col} groups account for ${share.toFixed(1)}% of ${segmentMetricColumn || 'activity'}.`,
+                                confidence: 'High'
+                            })
+                        }
+                    }
+                })
+
+                const comparativeInsights = []
+                if (regionColumn && segmentMetricColumn) {
+                    const regionAgg = {}
+                    dataset.rows.forEach((row) => {
+                        const key = String(row[ regionColumn ] ?? 'Missing').trim() || 'Missing'
+                        const metric = toNumber(row[ segmentMetricColumn ])
+                        if (metric === null) return
+                        regionAgg[ key ] = (regionAgg[ key ] || 0) + metric
+                    })
+
+                    const ranked = Object.entries(regionAgg).sort((a, b) => b[ 1 ] - a[ 1 ])
+                    if (ranked.length >= 2 && ranked[ 1 ][ 1 ] > 0) {
+                        comparativeInsights.push({
+                            title: 'Region vs Region',
+                            detail: `${ranked[ 0 ][ 0 ]} is ${(ranked[ 0 ][ 1 ] / ranked[ 1 ][ 1 ]).toFixed(2)}x stronger than ${ranked[ 1 ][ 0 ]} for ${segmentMetricColumn}.`,
+                            confidence: 'High'
+                        })
+                    }
+                }
+
+                if (primaryDateColumn && segmentMetricColumn) {
+                    const dated = dataset.rows
+                        .map((row) => ({ d: new Date(row[ primaryDateColumn ]), m: toNumber(row[ segmentMetricColumn ]) }))
+                        .filter((x) => !Number.isNaN(x.d.getTime()) && x.m !== null)
+                        .sort((a, b) => a.d - b.d)
+
+                    if (dated.length >= 6) {
+                        const midpoint = Math.floor(dated.length / 2)
+                        const before = dated.slice(0, midpoint)
+                        const after = dated.slice(midpoint)
+                        const avgBefore = before.reduce((acc, r) => acc + r.m, 0) / before.length
+                        const avgAfter = after.reduce((acc, r) => acc + r.m, 0) / after.length
+                        const change = avgBefore !== 0 ? ((avgAfter - avgBefore) / Math.abs(avgBefore)) * 100 : 0
+                        comparativeInsights.push({
+                            title: 'Before vs After Trend',
+                            detail: `${segmentMetricColumn} changed by ${change.toFixed(1)}% when comparing earlier vs later periods.`,
+                            confidence: Math.abs(change) >= 10 ? 'High' : 'Medium'
+                        })
+                    }
+                }
+
+                const behavioralInsights = []
+                if (primaryDateColumn) {
+                    let weekend = 0
+                    let weekday = 0
+                    dataset.rows.forEach((row) => {
+                        const d = new Date(row[ primaryDateColumn ])
+                        if (Number.isNaN(d.getTime())) return
+                        const day = d.getDay()
+                        if (day === 0 || day === 6) weekend += 1
+                        else weekday += 1
+                    })
+                    const totalDays = weekend + weekday
+                    if (totalDays > 0) {
+                        const weekendShare = (weekend / totalDays) * 100
+                        behavioralInsights.push({
+                            title: 'Weekday vs Weekend Behavior',
+                            detail: `${weekendShare.toFixed(1)}% of records occur on weekends (${weekend} weekend vs ${weekday} weekday).`,
+                            confidence: 'Medium'
+                        })
+                    }
+                }
+
+                if (customerColumn) {
+                    const freq = {}
+                    dataset.rows.forEach((row) => {
+                        const key = String(row[ customerColumn ] ?? '').trim()
+                        if (!key) return
+                        freq[ key ] = (freq[ key ] || 0) + 1
+                    })
+                    const counts = Object.values(freq)
+                    if (counts.length) {
+                        const repeatUsers = counts.filter((c) => c > 1).length
+                        const repeatShare = (repeatUsers / counts.length) * 100
+                        const avgFrequency = counts.reduce((acc, v) => acc + v, 0) / counts.length
+                        behavioralInsights.push({
+                            title: 'Repeat User Pattern',
+                            detail: `${repeatShare.toFixed(1)}% of ${customerColumn} are repeat users with average frequency ${avgFrequency.toFixed(2)}.`,
+                            confidence: repeatShare >= 40 ? 'High' : 'Medium'
+                        })
+                    }
+                }
                 const entropy = -sorted.reduce((e, [ _, count ]) => {
                     const p = count / dataset.rowCount
                     return e + (p > 0 ? p * Math.log2(p) : 0)
@@ -319,8 +560,13 @@ function AutoEDA({ dataset }) {
             const duplicateRows = new Set(dataset.rows.map(r => JSON.stringify(r))).size
             const duplicateScore = (duplicateRows / dataset.rowCount) * 100
             const outlierTotal = statistics.reduce((a, b) => a + b.outlierCount, 0)
-            const outlierScore = 100 - (outlierTotal / (dataset.rowCount * numericCols.length) * 100)
-            const qualityScore = Math.round((missingScore + duplicateScore + outlierScore) / 3)
+            const outlierScore = numericCols.length > 0
+                ? 100 - (outlierTotal / (dataset.rowCount * numericCols.length) * 100)
+                : 100
+            const safeMissingScore = Number.isFinite(missingScore) ? missingScore : 0
+            const safeDuplicateScore = Number.isFinite(duplicateScore) ? duplicateScore : 0
+            const safeOutlierScore = Number.isFinite(outlierScore) ? outlierScore : 0
+            const qualityScore = Math.round((safeMissingScore + safeDuplicateScore + safeOutlierScore) / 3)
 
             // Generate insights
             const insights = []
@@ -330,6 +576,37 @@ function AutoEDA({ dataset }) {
             if (statistics.some(s => Math.abs(parseFloat(s.skewness)) > 1)) insights.push({ type: 'info', icon: Activity, title: 'Skewed Distributions', desc: 'Some features have skewed distributions', action: 'Consider log transformation' })
             if (qualityScore >= 80) insights.push({ type: 'success', icon: CheckCircle, title: 'Good Data Quality', desc: `Quality score: ${qualityScore}/100`, action: 'Data is ready for analysis' })
             if (numericCols.length >= 3) insights.push({ type: 'success', icon: Zap, title: 'ML Ready', desc: `${numericCols.length} numeric features available`, action: 'Suitable for machine learning' })
+
+            if (numericCols.length === 0) {
+                insights.push({
+                    type: 'info',
+                    icon: Lightbulb,
+                    title: 'Categorical-Heavy Dataset',
+                    desc: 'No numeric columns detected. Focus on category distributions and missing-value patterns.',
+                    action: 'Use encoding or add numeric features before ML modeling'
+                })
+            }
+
+            const strongestCorrelation = [ ...correlations ].sort((a, b) => Math.abs(b.correlation) - Math.abs(a.correlation))[ 0 ]
+            if (strongestCorrelation) {
+                insights.push({
+                    type: 'info',
+                    icon: TrendingUp,
+                    title: 'Strongest Relationship',
+                    desc: `${strongestCorrelation.feature1} and ${strongestCorrelation.feature2} show ${strongestCorrelation.correlation.toFixed(3)} correlation.`,
+                    action: 'Validate whether this relationship is causal before acting on it'
+                })
+            }
+
+            if (!insights.length) {
+                insights.push({
+                    type: 'success',
+                    icon: CheckCircle,
+                    title: 'Baseline Checks Complete',
+                    desc: 'No major quality risks were detected from the current EDA checks.',
+                    action: 'Proceed with targeted analysis or model experimentation'
+                })
+            }
 
             // Radar data for quality
             const qualityRadar = [
@@ -345,8 +622,13 @@ function AutoEDA({ dataset }) {
                 missingData, statistics, correlations, categoricalAnalysis, qualityScore, insights, qualityRadar,
                 typeCount: [ { name: 'Numeric', value: numericCols.length }, { name: 'Categorical', value: categoricalCols.length } ],
                 numericColumns: numericCols,
+                dateColumns,
                 correlationHeatmap,
-                missingHeatmap
+                missingHeatmap,
+                trendInsights,
+                segmentationInsights,
+                comparativeInsights,
+                behavioralInsights
             }
             setResults(analysisResults)
             setEdaResults(analysisResults) // Save to global context for reports
@@ -408,11 +690,127 @@ function AutoEDA({ dataset }) {
         setHypothesisResult(evaluateHypothesis(hypothesisText, hypothesisFeature1, hypothesisFeature2, results))
     }
 
+    const handleExportVisualization = () => {
+        const chartContainer = vizChartRef.current
+        if (!chartContainer) return
+
+        const svg = chartContainer.querySelector('svg')
+        if (!svg) return
+
+        const serializer = new XMLSerializer()
+        const source = serializer.serializeToString(svg)
+        const svgBlob = new Blob([ source ], { type: 'image/svg+xml;charset=utf-8' })
+        const url = URL.createObjectURL(svgBlob)
+
+        const image = new Image()
+        image.onload = () => {
+            const canvas = document.createElement('canvas')
+            const scale = 2
+            canvas.width = (svg.clientWidth || 1000) * scale
+            canvas.height = (svg.clientHeight || 380) * scale
+
+            const ctx = canvas.getContext('2d')
+            if (!ctx) {
+                URL.revokeObjectURL(url)
+                return
+            }
+
+            ctx.setTransform(scale, 0, 0, scale, 0, 0)
+            ctx.fillStyle = '#ffffff'
+            ctx.fillRect(0, 0, canvas.width, canvas.height)
+            ctx.drawImage(image, 0, 0)
+
+            const link = document.createElement('a')
+            const safeX = (vizXColumn || 'x').replace(/\s+/g, '_')
+            const safeY = (vizYColumn || 'y').replace(/\s+/g, '_')
+            link.download = `visualization_${vizChartType}_${safeX}_${safeY}.png`
+            link.href = canvas.toDataURL('image/png')
+            link.click()
+            URL.revokeObjectURL(url)
+        }
+
+        image.src = url
+    }
+
     // Memoized filtered data
     const filteredStats = useMemo(() => {
         if (!results) return []
         return filterOutliers ? results.statistics.map(s => ({ ...s, outlierCount: 0 })) : results.statistics
     }, [ results, filterOutliers ])
+
+    const vizNumericColumns = useMemo(() => results?.numericColumns || [], [ results ])
+    const vizCategoricalColumns = useMemo(() => results?.categoricalAnalysis?.map((c) => c.name) || [], [ results ])
+    const vizAvailableColumns = useMemo(() => dataset?.headers || [], [ dataset ])
+
+    useEffect(() => {
+        if (!results || !dataset) return
+
+        if (!vizXColumn) {
+            const defaultX = vizCategoricalColumns[ 0 ] || vizAvailableColumns[ 0 ] || ''
+            setVizXColumn(defaultX)
+        }
+
+        if (!vizYColumn) {
+            const defaultY = vizNumericColumns[ 0 ] || ''
+            setVizYColumn(defaultY)
+        }
+    }, [ results, dataset, vizXColumn, vizYColumn, vizCategoricalColumns, vizAvailableColumns, vizNumericColumns ])
+
+    const vizData = useMemo(() => {
+        if (!dataset?.rows?.length || !vizXColumn) return []
+
+        if (vizChartType === 'scatter') {
+            if (!vizYColumn) return []
+
+            return dataset.rows
+                .map((row) => ({
+                    x: parseFloat(row[ vizXColumn ]),
+                    y: parseFloat(row[ vizYColumn ])
+                }))
+                .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y))
+                .slice(0, 250)
+        }
+
+        if (vizChartType === 'pie') {
+            const grouped = {}
+            dataset.rows.forEach((row) => {
+                const key = String(row[ vizXColumn ] ?? 'Missing').trim() || 'Missing'
+                grouped[ key ] = (grouped[ key ] || 0) + 1
+            })
+
+            return Object.entries(grouped)
+                .map(([ name, value ]) => ({ name, value }))
+                .sort((a, b) => b.value - a.value)
+                .slice(0, 12)
+        }
+
+        const grouped = {}
+        dataset.rows.forEach((row) => {
+            const key = String(row[ vizXColumn ] ?? 'Missing').trim() || 'Missing'
+            if (!grouped[ key ]) grouped[ key ] = []
+
+            const raw = parseFloat(row[ vizYColumn ])
+            if (Number.isFinite(raw)) grouped[ key ].push(raw)
+        })
+
+        return Object.entries(grouped)
+            .map(([ name, values ]) => {
+                if (!values.length) return { name, value: 0 }
+
+                if (vizAggregation === 'sum') {
+                    return { name, value: values.reduce((acc, val) => acc + val, 0) }
+                }
+
+                if (vizAggregation === 'count') {
+                    return { name, value: values.length }
+                }
+
+                const avg = values.reduce((acc, val) => acc + val, 0) / values.length
+                return { name, value: avg }
+            })
+            .sort((a, b) => b.value - a.value)
+            .slice(0, 20)
+    }, [ dataset, vizXColumn, vizYColumn, vizChartType, vizAggregation ])
 
     if (!dataset) {
         return (
@@ -435,6 +833,7 @@ function AutoEDA({ dataset }) {
         { id: 'distributions', label: 'Distributions', icon: BarChart3 },
         { id: 'correlations', label: 'Correlations', icon: TrendingUp },
         { id: 'quality', label: 'Data Quality', icon: CheckCircle },
+        { id: 'visualization', label: 'Visualization', icon: PieChart },
         { id: 'business', label: 'Business Q&A', icon: Target }
     ]
 
@@ -683,63 +1082,162 @@ function AutoEDA({ dataset }) {
                                     ))}
                                 </div>
                             </div>
+
+                            {(results.trendInsights?.length || results.segmentationInsights?.length || results.comparativeInsights?.length || results.behavioralInsights?.length) > 0 && (
+                                <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                                    {results.trendInsights?.length > 0 && (
+                                        <div className="card">
+                                            <h3 className="section-title mb-3">Trend Insights</h3>
+                                            <div className="space-y-3">
+                                                {results.trendInsights.map((item, idx) => (
+                                                    <div key={`trend-${idx}`} className="rounded-lg bg-slate-50 p-3">
+                                                        <p className="font-semibold text-slate-800">{item.title}</p>
+                                                        <p className="mt-1 text-sm text-slate-600">{item.detail}</p>
+                                                        <p className="mt-1 text-xs text-slate-500">Confidence: {item.confidence}</p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {results.segmentationInsights?.length > 0 && (
+                                        <div className="card">
+                                            <h3 className="section-title mb-3">Segmentation Insights</h3>
+                                            <div className="space-y-3">
+                                                {results.segmentationInsights.map((item, idx) => (
+                                                    <div key={`seg-${idx}`} className="rounded-lg bg-slate-50 p-3">
+                                                        <p className="font-semibold text-slate-800">{item.title}</p>
+                                                        <p className="mt-1 text-sm text-slate-600">{item.detail}</p>
+                                                        <p className="mt-1 text-xs text-slate-500">Confidence: {item.confidence}</p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {results.comparativeInsights?.length > 0 && (
+                                        <div className="card">
+                                            <h3 className="section-title mb-3">Comparative Insights</h3>
+                                            <div className="space-y-3">
+                                                {results.comparativeInsights.map((item, idx) => (
+                                                    <div key={`cmp-${idx}`} className="rounded-lg bg-slate-50 p-3">
+                                                        <p className="font-semibold text-slate-800">{item.title}</p>
+                                                        <p className="mt-1 text-sm text-slate-600">{item.detail}</p>
+                                                        <p className="mt-1 text-xs text-slate-500">Confidence: {item.confidence}</p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {results.behavioralInsights?.length > 0 && (
+                                        <div className="card">
+                                            <h3 className="section-title mb-3">Behavioral Insights</h3>
+                                            <div className="space-y-3">
+                                                {results.behavioralInsights.map((item, idx) => (
+                                                    <div key={`bhv-${idx}`} className="rounded-lg bg-slate-50 p-3">
+                                                        <p className="font-semibold text-slate-800">{item.title}</p>
+                                                        <p className="mt-1 text-sm text-slate-600">{item.detail}</p>
+                                                        <p className="mt-1 text-xs text-slate-500">Confidence: {item.confidence}</p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     )}
 
                     {/* Distributions Tab */}
                     {activeTab === 'distributions' && (
                         <div className="space-y-6">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {results.statistics.map((stat, i) => (
-                                    <div key={i} className="card">
-                                        <div className="flex items-center justify-between mb-3">
-                                            <h4 className="font-semibold">{stat.name}</h4>
-                                            <span className={`px-2 py-1 rounded text-xs ${stat.trend === 'symmetric' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>{stat.trend}</span>
-                                        </div>
-                                        <ResponsiveContainer width="100%" height={180}>
-                                            <ComposedChart data={stat.distribution}>
-                                                <CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="bin" tick={{ fontSize: 9 }} /><YAxis /><Tooltip />
-                                                <Bar dataKey="count" fill={COLORS[ i % COLORS.length ]} opacity={0.8} />
-                                                <Line type="monotone" dataKey="count" stroke="#333" strokeWidth={2} dot={false} />
-                                            </ComposedChart>
-                                        </ResponsiveContainer>
-                                        <div className="flex justify-between text-xs text-gray-500 mt-2">
-                                            <span>Min: {stat.min.toFixed(2)}</span>
-                                            <span>Mean: {stat.mean.toFixed(2)}</span>
-                                            <span>Max: {stat.max.toFixed(2)}</span>
-                                        </div>
+                            {results.statistics.length > 0 ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {results.statistics.map((stat, i) => (
+                                        <div key={i} className="card">
+                                            <div className="flex items-center justify-between mb-3">
+                                                <h4 className="font-semibold">{stat.name}</h4>
+                                                <span className={`px-2 py-1 rounded text-xs ${stat.trend === 'symmetric' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>{stat.trend}</span>
+                                            </div>
+                                            <ResponsiveContainer width="100%" height={180}>
+                                                <ComposedChart data={stat.distribution}>
+                                                    <CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="bin" tick={{ fontSize: 9 }} /><YAxis /><Tooltip />
+                                                    <Bar dataKey="count" fill={COLORS[ i % COLORS.length ]} opacity={0.8} />
+                                                    <Line type="monotone" dataKey="count" stroke="#333" strokeWidth={2} dot={false} />
+                                                </ComposedChart>
+                                            </ResponsiveContainer>
+                                            <div className="flex justify-between text-xs text-gray-500 mt-2">
+                                                <span>Min: {stat.min.toFixed(2)}</span>
+                                                <span>Mean: {stat.mean.toFixed(2)}</span>
+                                                <span>Max: {stat.max.toFixed(2)}</span>
+                                            </div>
 
-                                        <div className="mt-4">
-                                            <p className="mb-2 text-xs font-semibold text-slate-600">Boxplot View</p>
-                                            <div className="relative h-8 rounded bg-slate-100">
-                                                <div className="absolute top-1/2 h-0.5 bg-slate-400" style={{ left: '0%', width: '100%', transform: 'translateY(-50%)' }} />
-                                                <div
-                                                    className="absolute top-1/2 h-4 -translate-y-1/2 rounded bg-blue-300/80"
-                                                    style={{
-                                                        left: `${clampPercent(((stat.q1 - stat.min) / ((stat.max - stat.min) || 1)) * 100)}%`,
-                                                        width: `${clampPercent(((stat.q3 - stat.q1) / ((stat.max - stat.min) || 1)) * 100)}%`
-                                                    }}
-                                                />
-                                                <div
-                                                    className="absolute top-1/2 h-5 w-0.5 -translate-y-1/2 bg-blue-900"
-                                                    style={{ left: `${clampPercent(((stat.median - stat.min) / ((stat.max - stat.min) || 1)) * 100)}%` }}
-                                                />
-                                                <div
-                                                    className="absolute top-1/2 h-4 w-0.5 -translate-y-1/2 bg-slate-700"
-                                                    style={{ left: `${clampPercent(((stat.min - stat.min) / ((stat.max - stat.min) || 1)) * 100)}%` }}
-                                                />
-                                                <div
-                                                    className="absolute top-1/2 h-4 w-0.5 -translate-y-1/2 bg-slate-700"
-                                                    style={{ left: `${clampPercent(((stat.max - stat.min) / ((stat.max - stat.min) || 1)) * 100)}%` }}
-                                                />
-                                            </div>
-                                            <div className="mt-1 flex justify-between text-[10px] text-slate-500">
-                                                <span>Min</span><span>Q1</span><span>Median</span><span>Q3</span><span>Max</span>
+                                            <div className="mt-4">
+                                                <p className="mb-2 text-xs font-semibold text-slate-600">Boxplot View</p>
+                                                <div className="relative h-8 rounded bg-slate-100">
+                                                    <div className="absolute top-1/2 h-0.5 bg-slate-400" style={{ left: '0%', width: '100%', transform: 'translateY(-50%)' }} />
+                                                    <div
+                                                        className="absolute top-1/2 h-4 -translate-y-1/2 rounded bg-blue-300/80"
+                                                        style={{
+                                                            left: `${clampPercent(((stat.q1 - stat.min) / ((stat.max - stat.min) || 1)) * 100)}%`,
+                                                            width: `${clampPercent(((stat.q3 - stat.q1) / ((stat.max - stat.min) || 1)) * 100)}%`
+                                                        }}
+                                                    />
+                                                    <div
+                                                        className="absolute top-1/2 h-5 w-0.5 -translate-y-1/2 bg-blue-900"
+                                                        style={{ left: `${clampPercent(((stat.median - stat.min) / ((stat.max - stat.min) || 1)) * 100)}%` }}
+                                                    />
+                                                    <div
+                                                        className="absolute top-1/2 h-4 w-0.5 -translate-y-1/2 bg-slate-700"
+                                                        style={{ left: `${clampPercent(((stat.min - stat.min) / ((stat.max - stat.min) || 1)) * 100)}%` }}
+                                                    />
+                                                    <div
+                                                        className="absolute top-1/2 h-4 w-0.5 -translate-y-1/2 bg-slate-700"
+                                                        style={{ left: `${clampPercent(((stat.max - stat.min) / ((stat.max - stat.min) || 1)) * 100)}%` }}
+                                                    />
+                                                </div>
+                                                <div className="mt-1 flex justify-between text-[10px] text-slate-500">
+                                                    <span>Min</span><span>Q1</span><span>Median</span><span>Q3</span><span>Max</span>
+                                                </div>
                                             </div>
                                         </div>
+                                    ))}
+                                </div>
+                            ) : results.categoricalAnalysis.length > 0 ? (
+                                <div className="space-y-4">
+                                    <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
+                                        No numeric columns were detected. Showing categorical value distributions instead.
                                     </div>
-                                ))}
-                            </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        {results.categoricalAnalysis.map((cat, i) => (
+                                            <div key={i} className="card">
+                                                <div className="mb-3 flex items-center justify-between">
+                                                    <h4 className="font-semibold">{cat.name}</h4>
+                                                    <span className="text-xs text-slate-500">{cat.uniqueValues} unique</span>
+                                                </div>
+                                                <ResponsiveContainer width="100%" height={220}>
+                                                    <BarChart data={cat.topValues.slice(0, 8)} layout="vertical">
+                                                        <CartesianGrid strokeDasharray="3 3" />
+                                                        <XAxis type="number" />
+                                                        <YAxis dataKey="name" type="category" width={90} tick={{ fontSize: 10 }} />
+                                                        <Tooltip formatter={(value, name) => name === 'value' ? `${value} rows` : value} />
+                                                        <Bar dataKey="value" fill={COLORS[ i % COLORS.length ]} radius={[ 0, 4, 4, 0 ]} />
+                                                    </BarChart>
+                                                </ResponsiveContainer>
+                                                <div className="mt-2 flex justify-between text-xs text-gray-500">
+                                                    <span>Entropy: {cat.entropy}</span>
+                                                    <span>Top value: {cat.dominance}%</span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="card text-center py-12 text-slate-500">
+                                    No distribution data is available for this dataset.
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -986,6 +1484,134 @@ function AutoEDA({ dataset }) {
                                     </div>
                                 </div>
                             )}
+                        </div>
+                    )}
+
+                    {/* Visualization Tab */}
+                    {activeTab === 'visualization' && (
+                        <div className="space-y-6">
+                            <div className="card">
+                                <h3 className="section-title mb-4">Custom Visualization Builder</h3>
+                                <p className="mb-4 text-sm text-slate-600">Choose columns and chart type to quickly understand patterns, composition, and relationships in your dataset.</p>
+
+                                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+                                    <div>
+                                        <label className="mb-1 block text-xs font-semibold text-slate-600">Chart Type</label>
+                                        <select value={vizChartType} onChange={(e) => setVizChartType(e.target.value)} className="input-field">
+                                            <option value="bar">Bar Chart</option>
+                                            <option value="line">Line Chart</option>
+                                            <option value="area">Area Chart</option>
+                                            <option value="pie">Pie Chart</option>
+                                            <option value="scatter">Scatter Plot</option>
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label className="mb-1 block text-xs font-semibold text-slate-600">X Axis / Category</label>
+                                        <select value={vizXColumn} onChange={(e) => setVizXColumn(e.target.value)} className="input-field">
+                                            {vizAvailableColumns.map((col) => <option key={`viz-x-${col}`} value={col}>{col}</option>)}
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label className="mb-1 block text-xs font-semibold text-slate-600">Y Axis (numeric)</label>
+                                        <select value={vizYColumn} onChange={(e) => setVizYColumn(e.target.value)} className="input-field" disabled={vizChartType === 'pie'}>
+                                            {vizNumericColumns.length ? vizNumericColumns.map((col) => <option key={`viz-y-${col}`} value={col}>{col}</option>) : <option value="">No numeric columns</option>}
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label className="mb-1 block text-xs font-semibold text-slate-600">Aggregation</label>
+                                        <select value={vizAggregation} onChange={(e) => setVizAggregation(e.target.value)} className="input-field" disabled={vizChartType === 'scatter' || vizChartType === 'pie'}>
+                                            <option value="mean">Average</option>
+                                            <option value="sum">Sum</option>
+                                            <option value="count">Count</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="card">
+                                <div className="mb-4 flex items-center justify-between gap-3">
+                                    <h3 className="section-title">Visualization Preview</h3>
+                                    <button
+                                        onClick={handleExportVisualization}
+                                        disabled={!vizData.length}
+                                        className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                        <Download size={14} /> Export PNG
+                                    </button>
+                                </div>
+                                {!vizData.length ? (
+                                    <p className="py-10 text-center text-sm text-slate-500">Unable to render chart with current selections. Try another column combination.</p>
+                                ) : (
+                                    <div ref={vizChartRef}>
+                                        <ResponsiveContainer width="100%" height={380}>
+                                            <>
+                                                {vizChartType === 'bar' && (
+                                                    <BarChart data={vizData}>
+                                                        <CartesianGrid strokeDasharray="3 3" />
+                                                        <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                                                        <YAxis />
+                                                        <Tooltip />
+                                                        <Bar dataKey="value" fill="#6366f1" radius={[ 6, 6, 0, 0 ]} />
+                                                    </BarChart>
+                                                )}
+
+                                                {vizChartType === 'line' && (
+                                                    <LineChart data={vizData}>
+                                                        <CartesianGrid strokeDasharray="3 3" />
+                                                        <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                                                        <YAxis />
+                                                        <Tooltip />
+                                                        <Line type="monotone" dataKey="value" stroke="#06b6d4" strokeWidth={3} dot={false} />
+                                                    </LineChart>
+                                                )}
+
+                                                {vizChartType === 'area' && (
+                                                    <AreaChart data={vizData}>
+                                                        <defs>
+                                                            <linearGradient id="vizArea" x1="0" y1="0" x2="0" y2="1">
+                                                                <stop offset="5%" stopColor="#10b981" stopOpacity={0.7} />
+                                                                <stop offset="95%" stopColor="#10b981" stopOpacity={0.1} />
+                                                            </linearGradient>
+                                                        </defs>
+                                                        <CartesianGrid strokeDasharray="3 3" />
+                                                        <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                                                        <YAxis />
+                                                        <Tooltip />
+                                                        <Area type="monotone" dataKey="value" stroke="#10b981" fill="url(#vizArea)" />
+                                                    </AreaChart>
+                                                )}
+
+                                                {vizChartType === 'pie' && (
+                                                    <RechartsPie>
+                                                        <Tooltip />
+                                                        <Legend />
+                                                        <Pie data={vizData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={130} label>
+                                                            {vizData.map((_, idx) => <Cell key={`viz-pie-${idx}`} fill={COLORS[ idx % COLORS.length ]} />)}
+                                                        </Pie>
+                                                    </RechartsPie>
+                                                )}
+
+                                                {vizChartType === 'scatter' && (
+                                                    <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+                                                        <CartesianGrid strokeDasharray="3 3" />
+                                                        <XAxis dataKey="x" name={vizXColumn} type="number" />
+                                                        <YAxis dataKey="y" name={vizYColumn} type="number" />
+                                                        <Tooltip cursor={{ strokeDasharray: '3 3' }} />
+                                                        <Scatter data={vizData} fill="#f97316" />
+                                                    </ScatterChart>
+                                                )}
+                                            </>
+                                        </ResponsiveContainer>
+                                    </div>
+                                )}
+
+                                <div className="mt-4 text-xs text-slate-500">
+                                    <span className="font-semibold">Current setup:</span> {vizChartType.toUpperCase()} using <span className="font-semibold">{vizXColumn || 'N/A'}</span>{vizChartType !== 'pie' ? ` vs ${vizYColumn || 'N/A'} (${vizAggregation})` : ''}
+                                </div>
+                            </div>
                         </div>
                     )}
 
