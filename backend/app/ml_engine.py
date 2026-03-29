@@ -31,8 +31,8 @@ warnings.filterwarnings('ignore')
 
 class MLEngine:
     def __init__(self):
-        self.gpu_available = False
-        self.gpu_name = "CPU Only"
+        self.gpu_available: bool = False
+        self.gpu_name: str = "CPU Only"
         self._check_gpu()
         self.models = {}
         self.best_model = None
