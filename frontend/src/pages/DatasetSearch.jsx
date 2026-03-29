@@ -79,12 +79,16 @@ function DatasetSearch({ setDataset }) {
         try {
             const data = await kaggleAPI.download(dataset.ref || dataset.id, kaggleUsername, kaggleKey)
 
+            // Backend returns the dataset directly if it could parse it
             if (data.headers && data.rows) {
                 setDataset(data)
                 setUploadSuccess(true)
                 setTimeout(() => setUploadSuccess(false), 3000)
+            } else if (data.kaggleUrl) {
+                // Backend couldn't auto-parse — open Kaggle page so user can download manually
+                setError(`Auto-download unavailable for this dataset. Download the CSV from Kaggle and upload it here: ${data.kaggleUrl}`)
             } else {
-                throw new Error('Invalid dataset format')
+                throw new Error(data.message || 'Download failed — please download the CSV from Kaggle and upload it.')
             }
         } catch (err) {
             setError(err.message || 'Failed to download dataset')

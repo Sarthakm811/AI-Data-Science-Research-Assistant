@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import { Cpu, Sparkles, Layers, SlidersHorizontal, Download, CheckCircle2, AlertCircle } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ScatterChart, Scatter, ZAxis } from 'recharts'
-import { datasetAPI } from '../services/api'
+import { datasetAPI, ensureBackendDataset } from '../services/api'
 
 function isMissing(value) {
     return value === null || value === undefined || String(value).trim() === ''
@@ -608,14 +608,12 @@ function FeatureEngineering({ dataset, setDataset }) {
     }
 
     const saveEngineeredVersion = async () => {
-        if (!transformed || !dataset?.id) {
-            setMessage('Cannot save version: backend dataset id is missing.')
-            return
-        }
+        if (!transformed) return
 
         setSavingVersion(true)
         try {
-            const payload = await datasetAPI.featureEngineerDataset(dataset.id, {
+            const backendId = await ensureBackendDataset(dataset)
+            const payload = await datasetAPI.featureEngineerDataset(backendId, {
                 headers: transformed.headers,
                 rows: transformed.rows,
                 name: `${dataset?.name || 'dataset'}_engineered`,

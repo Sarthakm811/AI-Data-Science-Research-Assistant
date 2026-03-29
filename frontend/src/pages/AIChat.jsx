@@ -58,12 +58,9 @@ function AIChat({ dataset }) {
             }
             setMessages(prev => [ ...prev, assistantMessage ])
         } catch (err) {
-            setError(handleApiError(err))
-            const errorMessage = {
-                role: 'assistant',
-                content: `Sorry, I encountered an error: ${handleApiError(err)}`
-            }
-            setMessages(prev => [ ...prev, errorMessage ])
+            const errMsg = handleApiError(err)
+            setError(errMsg)
+            setMessages(prev => [ ...prev, { role: 'assistant', content: `Sorry, I encountered an error: ${errMsg}` } ])
         } finally {
             setLoading(false)
         }
@@ -146,7 +143,7 @@ function AIChat({ dataset }) {
                         type="text"
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                        onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
                         placeholder="Ask a question about your data..."
                         className="input-field flex-1"
                         disabled={loading}

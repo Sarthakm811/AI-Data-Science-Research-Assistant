@@ -1,6 +1,7 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
 import { Search, Sparkles, SlidersHorizontal, BarChart3, Brain, Calculator, MessageSquare, FileText, Database } from 'lucide-react'
+import { useAnalysis } from '../context/AnalysisContext'
 
 const features = [
     {
@@ -62,6 +63,8 @@ const features = [
 ]
 
 function Dashboard({ dataset }) {
+    const { edaResults, mlResults } = useAnalysis()
+    const analysesRun = (edaResults ? 1 : 0) + (mlResults ? 1 : 0)
     return (
         <div className="space-y-8">
             {/* Hero Section */}
@@ -98,11 +101,11 @@ function Dashboard({ dataset }) {
                         <p className="text-slate-500">Columns</p>
                     </div>
                     <div className="card text-center">
-                        <p className="text-3xl font-bold text-emerald-700">0</p>
+                        <p className="text-3xl font-bold text-emerald-700">{analysesRun}</p>
                         <p className="text-slate-500">Analyses Run</p>
                     </div>
                     <div className="card text-center">
-                        <p className="text-3xl font-bold text-orange-600">0</p>
+                        <p className="text-3xl font-bold text-orange-600">{mlResults?.models?.length ?? 0}</p>
                         <p className="text-slate-500">Models Trained</p>
                     </div>
                 </div>

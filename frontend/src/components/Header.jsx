@@ -9,9 +9,9 @@ function Header({ dataset, setDataset, toggleSidebar, isMobile }) {
     const handleFileUpload = async (e) => {
         const file = e.target.files[ 0 ]
         if (!file) return
-
+        // Reset input so the same file can be re-uploaded
+        e.target.value = ''
         setUploading(true)
-
         try {
             const data = await datasetAPI.uploadDataset(file)
             setDataset(data)

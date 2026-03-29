@@ -520,7 +520,7 @@ def _clean_dataframe(df: pd.DataFrame, req: DataCleaningRequest) -> tuple[pd.Dat
     cleaned = df.copy()
 
     before_rows = int(len(cleaned))
-    before_missing = int(cleaned.apply(lambda col: col.map(_is_missing)).sum().sum())
+    before_missing = int(cleaned.apply(lambda col: col.apply(_is_missing)).sum().sum())
 
     if req.trim_text:
         obj_cols = cleaned.select_dtypes(include=["object", "string", "category"]).columns
@@ -568,7 +568,7 @@ def _clean_dataframe(df: pd.DataFrame, req: DataCleaningRequest) -> tuple[pd.Dat
 
     smoothing_summary = _apply_noise_smoothing(cleaned, req)
 
-    after_missing = int(cleaned.apply(lambda col: col.map(_is_missing)).sum().sum())
+    after_missing = int(cleaned.apply(lambda col: col.apply(_is_missing)).sum().sum())
 
     summary = {
         "rows_before": before_rows,
