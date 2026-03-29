@@ -68,7 +68,7 @@ class StatisticalAnalyzer:
                         "p_value": float(p_value),
                         "fit_quality": "good" if p_value > 0.05 else "poor",
                     }
-            except:
+            except Exception:
                 continue
 
         return best_fit or {"best_fit": "none"}

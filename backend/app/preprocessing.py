@@ -11,6 +11,7 @@ from sklearn.preprocessing import (
     LabelEncoder, OneHotEncoder, QuantileTransformer
 )
 from sklearn.impute import SimpleImputer, KNNImputer
+from sklearn.experimental import enable_iterative_imputer  # noqa: F401
 from sklearn.impute import IterativeImputer
 from sklearn.feature_selection import (
     VarianceThreshold, SelectKBest, mutual_info_classif, mutual_info_regression, RFE

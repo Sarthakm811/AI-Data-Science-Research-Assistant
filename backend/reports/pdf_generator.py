@@ -570,7 +570,7 @@ class EDAPDFReport:
                 for x in missing_data["Percentage"]
             ]
 
-            bars = ax1.barh(
+            ax1.barh(
                 range(len(missing_data)), missing_data["Percentage"], color=colors
             )
             ax1.set_yticks(range(len(missing_data)))
@@ -871,7 +871,7 @@ Interpretation Guide:
                     linewidth=2,
                     label="KDE",
                 )
-            except:
+            except Exception:
                 pass
 
             # Mean and median lines

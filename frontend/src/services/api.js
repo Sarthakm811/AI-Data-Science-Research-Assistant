@@ -32,7 +32,11 @@ export const sessionAPI = {
 
 export const datasetAPI = {
     async searchDatasets(query, page = 1, limit = 10) {
-        const response = await fetch(`${API_V1}/datasets/search?q=${encodeURIComponent(query)}&page=${page}&limit=${limit}`);
+        const response = await fetch(`${API_V1}/datasets/search`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query, page, limit })
+        });
         if (!response.ok) throw new Error('Failed to search datasets');
         return response.json();
     },
@@ -138,36 +142,6 @@ export const edaAPI = {
         });
         if (!response.ok) throw new Error('Failed to analyze dataset');
         return response.json();
-    },
-
-    async getEDAResults(datasetId) {
-        const response = await fetch(`${API_V1}/eda/results/${datasetId}`);
-        if (!response.ok) throw new Error('Failed to fetch EDA results');
-        return response.json();
-    },
-
-    async structuralAnalysis(datasetId) {
-        const response = await fetch(`${API_V1}/eda/${datasetId}/structural`);
-        if (!response.ok) throw new Error('Failed to perform structural analysis');
-        return response.json();
-    },
-
-    async statisticalAnalysis(datasetId) {
-        const response = await fetch(`${API_V1}/eda/${datasetId}/statistical`);
-        if (!response.ok) throw new Error('Failed to perform statistical analysis');
-        return response.json();
-    },
-
-    async correlationAnalysis(datasetId) {
-        const response = await fetch(`${API_V1}/eda/${datasetId}/correlation`);
-        if (!response.ok) throw new Error('Failed to perform correlation analysis');
-        return response.json();
-    },
-
-    async dataQualityAnalysis(datasetId) {
-        const response = await fetch(`${API_V1}/eda/${datasetId}/quality`);
-        if (!response.ok) throw new Error('Failed to perform quality analysis');
-        return response.json();
     }
 };
 
@@ -190,23 +164,23 @@ export const mlAPI = {
         return response.json();
     },
 
-    async getModelResults(datasetId) {
-        const response = await fetch(`${API_V1}/ml/results/${datasetId}`);
-        if (!response.ok) throw new Error('Failed to fetch model results');
-        return response.json();
-    },
-
-    async getFeatureImportance(datasetId) {
-        const response = await fetch(`${API_V1}/ml/${datasetId}/feature-importance`);
+    async getFeatureImportance(modelId) {
+        const response = await fetch(`${API_V1}/explain/feature-importance?model_id=${encodeURIComponent(modelId)}`, {
+            method: 'POST'
+        });
         if (!response.ok) throw new Error('Failed to fetch feature importance');
         return response.json();
     },
 
-    async predictWithModel(datasetId, data) {
-        const response = await fetch(`${API_V1}/ml/${datasetId}/predict`, {
+    async predictWithModel(datasetId, modelId, data) {
+        const response = await fetch(`${API_V1}/predict`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
+            body: JSON.stringify({
+                dataset_id: datasetId,
+                model_id: modelId,
+                data: data
+            })
         });
         if (!response.ok) throw new Error('Failed to make prediction');
         return response.json();

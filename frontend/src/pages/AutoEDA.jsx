@@ -231,9 +231,9 @@ function AutoEDA({ dataset }) {
         setAnalyzing(true);
         try {
             // Optionally, create a session if needed (already handled in useEffect)
-            await edaAPI.analyzeDataset(dataset.id, qaSessionId);
-            // Wait for backend to finish analysis (could poll or just fetch)
-            const edaResults = await edaAPI.getEDAResults(dataset.id);
+            const analysisResponse = await edaAPI.analyzeDataset(dataset.id, qaSessionId);
+            // Analysis is returned synchronously by the backend endpoint
+            const edaResults = analysisResponse.eda || analysisResponse;
             setResults(edaResults);
             setEdaResults(edaResults);
             setBusinessAnswer('');

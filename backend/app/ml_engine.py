@@ -230,7 +230,7 @@ class MLEngine:
                 status["cuda_version"] = torch.version.cuda
                 status["memory_total"] = f"{torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB"
                 status["memory_used"] = f"{torch.cuda.memory_allocated(0) / 1e9:.2f} GB"
-        except:
+        except Exception:
             pass
         
         return status
@@ -303,7 +303,7 @@ class MLEngine:
                     n_estimators=100, tree_method='gpu_hist', 
                     gpu_id=0, random_state=42, use_label_encoder=False, eval_metric='logloss'
                 )
-            except:
+            except Exception:
                 import xgboost as xgb
                 models["XGBoost"] = xgb.XGBClassifier(n_estimators=100, random_state=42)
             
@@ -312,7 +312,7 @@ class MLEngine:
                 models["LightGBM"] = lgb.LGBMClassifier(
                     n_estimators=100, device='gpu', random_state=42, verbose=-1
                 )
-            except:
+            except Exception:
                 import lightgbm as lgb
                 models["LightGBM"] = lgb.LGBMClassifier(n_estimators=100, random_state=42, verbose=-1)
             
@@ -322,7 +322,7 @@ class MLEngine:
                     iterations=100, task_type='GPU', devices='0', 
                     random_state=42, verbose=False
                 )
-            except:
+            except Exception:
                 from catboost import CatBoostClassifier
                 models["CatBoost"] = CatBoostClassifier(iterations=100, random_state=42, verbose=False)
         else:
@@ -419,7 +419,7 @@ class MLEngine:
                 models["XGBoost"] = xgb.XGBRegressor(
                     n_estimators=100, tree_method='gpu_hist', gpu_id=0, random_state=42
                 )
-            except:
+            except Exception:
                 import xgboost as xgb
                 models["XGBoost"] = xgb.XGBRegressor(n_estimators=100, random_state=42)
             
@@ -428,7 +428,7 @@ class MLEngine:
                 models["LightGBM"] = lgb.LGBMRegressor(
                     n_estimators=100, device='gpu', random_state=42, verbose=-1
                 )
-            except:
+            except Exception:
                 import lightgbm as lgb
                 models["LightGBM"] = lgb.LGBMRegressor(n_estimators=100, random_state=42, verbose=-1)
             
@@ -437,7 +437,7 @@ class MLEngine:
                 models["CatBoost"] = CatBoostRegressor(
                     iterations=100, task_type='GPU', devices='0', random_state=42, verbose=False
                 )
-            except:
+            except Exception:
                 from catboost import CatBoostRegressor
                 models["CatBoost"] = CatBoostRegressor(iterations=100, random_state=42, verbose=False)
         else:
@@ -631,7 +631,7 @@ class MLEngine:
                                 "fpr": fpr.tolist(),
                                 "tpr": tpr.tolist(),
                             }
-                        except:
+                        except Exception:
                             pass
                     
                     score = metrics["accuracy"]
@@ -654,7 +654,7 @@ class MLEngine:
                     
                     metrics["cv_mean"] = float(cv_scores.mean())
                     metrics["cv_std"] = float(cv_scores.std())
-                except:
+                except Exception:
                     metrics["cv_mean"] = None
                     metrics["cv_std"] = None
 

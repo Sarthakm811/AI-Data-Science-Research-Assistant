@@ -505,8 +505,8 @@ class EnhancedVisualizer:
         upper_bound = Q3 + 1.5 * IQR
 
         # Z-score method
-        z_scores = np.abs(stats.zscore(data))
-        z_outliers = z_scores > 3
+        stats.zscore(data)
+        pass # z_outliers unused
 
         # Create figure
         fig = go.Figure()
