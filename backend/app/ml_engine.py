@@ -1,28 +1,8 @@
-"""
-GPU-Accelerated Machine Learning Engine
-Supports 40+ models with hyperparameter tuning
-"""
+import warnings
+import time
 
-import numpy as np
-import pandas as pd
+# Core utilities stay at top level
 from typing import Dict, Any, List, Tuple
-from sklearn.model_selection import (
-    train_test_split,
-    cross_val_score,
-    StratifiedKFold,
-    KFold,
-    GridSearchCV,
-    RandomizedSearchCV,
-    ParameterGrid,
-)
-from sklearn.metrics import (
-    accuracy_score, precision_score, recall_score, f1_score,
-    r2_score, mean_squared_error, mean_absolute_error,
-    roc_auc_score, roc_curve,
-    silhouette_score, calinski_harabasz_score, davies_bouldin_score,
-)
-from sklearn.preprocessing import LabelEncoder, StandardScaler
-from sklearn.cluster import KMeans, DBSCAN, AgglomerativeClustering
 import warnings
 import time
 
@@ -84,11 +64,13 @@ class MLEngine:
         model: Any,
         model_name: str,
         task_type: str,
-        X_train: np.ndarray,
-        y_train: np.ndarray,
+        X_train: 'np.ndarray',
+        y_train: 'np.ndarray',
         cv_folds: int,
         n_trials: int,
     ) -> Tuple[Any, Dict[str, Any]]:
+        import numpy as np
+        from sklearn.model_selection import StratifiedKFold, KFold, GridSearchCV, RandomizedSearchCV, ParameterGrid
         params = self._get_hyperparameter_space(model_name, task_type)
         if not params:
             return model, {'applied': False, 'strategy': None, 'reason': 'No tunable parameter space'}
@@ -123,12 +105,15 @@ class MLEngine:
 
     def cluster_data(
         self,
-        X: np.ndarray,
+        X: 'np.ndarray',
         algorithm: str = 'kmeans',
         n_clusters: int = 3,
         eps: float = 0.5,
         min_samples: int = 5,
     ) -> Dict[str, Any]:
+        import numpy as np
+        from sklearn.cluster import KMeans, DBSCAN, AgglomerativeClustering
+        from sklearn.metrics import silhouette_score, calinski_harabasz_score, davies_bouldin_score
         algo = str(algorithm or 'kmeans').strip().lower()
 
         if algo == 'dbscan':
@@ -461,19 +446,21 @@ class MLEngine:
         
         return models
     
-    def _detect_task_type(self, y: pd.Series) -> str:
+    def _detect_task_type(self, y: 'pd.Series') -> str:
         """Auto-detect classification vs regression"""
         unique_ratio = len(y.unique()) / len(y)
         
-        if y.dtype == 'object' or y.dtype.name == 'category':
+        if y.dtype == 'object' or getattr(y.dtype, 'name', '') == 'category':
             return 'classification'
         elif len(y.unique()) <= 20 and unique_ratio < 0.05:
             return 'classification'
         else:
             return 'regression'
     
-    def _prepare_data(self, df: pd.DataFrame, target_column: str) -> Tuple[np.ndarray, np.ndarray, List[str]]:
+    def _prepare_data(self, df: 'pd.DataFrame', target_column: str) -> Tuple['np.ndarray', 'np.ndarray', List[str]]:
         """Prepare data for training"""
+        import numpy as np
+        from sklearn.preprocessing import LabelEncoder
         X = df.drop(columns=[target_column])
         y = df[target_column]
         
@@ -482,7 +469,7 @@ class MLEngine:
             X[col] = LabelEncoder().fit_transform(X[col].astype(str))
         
         # Handle target for classification
-        if y.dtype == 'object' or y.dtype.name == 'category':
+        if y.dtype == 'object' or getattr(y.dtype, 'name', '') == 'category':
             y = LabelEncoder().fit_transform(y)
         
         # Handle missing values
@@ -492,8 +479,8 @@ class MLEngine:
         
         return X.values, np.array(y), feature_names
     
-    def _apply_sampling(self, X: np.ndarray, y: np.ndarray, task_type: str, 
-                        sample_size: int = 200) -> Tuple[np.ndarray, np.ndarray, bool]:
+    def _apply_sampling(self, X: 'np.ndarray', y: 'np.ndarray', task_type: str, 
+                        sample_size: int = 200) -> Tuple['np.ndarray', 'np.ndarray', bool]:
         """Apply intelligent sampling for large datasets to speed up training
         
         Args:
@@ -505,6 +492,7 @@ class MLEngine:
         Returns:
             Tuple of (X_sampled, y_sampled, was_sampled)
         """
+        import numpy as np
         if len(X) <= sample_size:
             return X, y, False
         
@@ -529,7 +517,7 @@ class MLEngine:
     
     def train_all_models(
         self,
-        df: pd.DataFrame,
+        df: 'pd.DataFrame',
         target_column: str,
         task_type: str = "auto",
         use_gpu: bool = True,
@@ -539,11 +527,11 @@ class MLEngine:
         test_size: float = 0.2,
         sample_threshold: int = 200
     ) -> Dict[str, Any]:
-        """Train all models and return results
-        
-        Args:
-            sample_threshold: Dataset size threshold for sampling (default 200 rows)
-        """
+        """Train all models and return results"""
+        import numpy as np
+        import pandas as pd
+        from sklearn.model_selection import train_test_split
+        from sklearn.preprocessing import StandardScaler
         
         start_time = time.time()
         
@@ -613,6 +601,13 @@ class MLEngine:
                 y_pred = model.predict(X_test_scaled)
                 
                 # Calculate metrics
+                from sklearn.metrics import (
+                    accuracy_score, precision_score, recall_score, f1_score,
+                    r2_score, mean_squared_error, mean_absolute_error,
+                    roc_auc_score, roc_curve,
+                )
+                from sklearn.model_selection import StratifiedKFold, KFold, cross_val_score
+                
                 if task_type == "classification":
                     metrics = {
                         "accuracy": float(accuracy_score(y_test, y_pred)),
@@ -732,6 +727,7 @@ class MLEngine:
     
     def _get_feature_importance(self, model, feature_names: List[str]) -> List[Dict[str, Any]]:
         """Extract feature importance from model"""
+        import numpy as np
         importance = None
         
         if hasattr(model, 'feature_importances_'):

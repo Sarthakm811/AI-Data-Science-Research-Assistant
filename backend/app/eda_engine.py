@@ -1,15 +1,7 @@
-"""
-Advanced EDA Engine
-Statistical analysis, tests, and data quality assessment
-"""
-
-from __future__ import annotations
-
 from typing import Any, Dict, List, Optional
 
-import numpy as np
+# Core pandas stays for type hinting if preferred, or move it too
 import pandas as pd
-from scipy.stats import chi2_contingency, mannwhitneyu, shapiro, ttest_ind
 
 
 class EDAEngine:
@@ -31,6 +23,8 @@ class EDAEngine:
         self, df: pd.DataFrame, column1: str, column2: Optional[str] = None
     ) -> Dict[str, Any]:
         """Run a lightweight statistical test suite for one or two columns."""
+        from scipy.stats import chi2_contingency, mannwhitneyu, ttest_ind
+        
         if column1 not in df.columns:
             raise ValueError(f"Column not found: {column1}")
 
@@ -150,6 +144,7 @@ class EDAEngine:
         }
 
     def _statistics(self, df: pd.DataFrame) -> Dict[str, Any]:
+        import numpy as np
         num = df.select_dtypes(include=[np.number])
         if num.empty:
             return {}
@@ -161,6 +156,7 @@ class EDAEngine:
         return stats
 
     def _correlations(self, df: pd.DataFrame) -> Dict[str, Any]:
+        import numpy as np
         num = df.select_dtypes(include=[np.number])
         if num.shape[1] < 2:
             return {"correlation_matrix": {}, "high_correlations": []}
@@ -183,6 +179,7 @@ class EDAEngine:
         return {"correlation_matrix": corr.to_dict(), "high_correlations": high}
 
     def _outliers(self, df: pd.DataFrame) -> Dict[str, Any]:
+        import numpy as np
         out: Dict[str, Any] = {}
         num = df.select_dtypes(include=[np.number])
         n_rows = max(len(df), 1)
@@ -210,6 +207,7 @@ class EDAEngine:
         return out
 
     def _normality_test(self, series: pd.Series) -> Dict[str, Any]:
+        from scipy.stats import shapiro
         if not pd.api.types.is_numeric_dtype(series):
             return {"test": "shapiro", "error": "Normality tests require numeric data"}
 
@@ -227,6 +225,7 @@ class EDAEngine:
         }
 
     def _recommendations(self, df: pd.DataFrame) -> List[str]:
+        import numpy as np
         recommendations: List[str] = []
         missing = df.isna().sum().sum()
         if missing > 0:

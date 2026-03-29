@@ -16,37 +16,14 @@ import uuid
 from contextlib import contextmanager
 from typing import Any, Dict, List, Optional
 
+from starlette.responses import StreamingResponse
+from starlette.responses import StreamingResponse
+
 import joblib
 import numpy as np
 import pandas as pd
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel, ConfigDict, Field
-from scipy.stats import beta as beta_distribution, chi2_contingency, f_oneway, norm, t, ttest_ind
-from sklearn.base import clone
-from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
-from sklearn.linear_model import LinearRegression, LogisticRegression
-from sklearn.metrics import (
-    accuracy_score,
-    confusion_matrix,
-    f1_score,
-    mean_absolute_error,
-    mean_squared_error,
-    precision_score,
-    r2_score,
-    roc_auc_score,
-    roc_curve,
-    recall_score,
-)
-from sklearn.model_selection import KFold, StratifiedKFold, cross_val_score, train_test_split
-from sklearn.multioutput import MultiOutputClassifier, MultiOutputRegressor
-from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
-from sklearn.preprocessing import LabelEncoder, StandardScaler
-from sklearn.svm import SVC, SVR
-from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
-from statsmodels.stats.proportion import proportions_ztest
-from statsmodels.tsa.arima.model import ARIMA
-from statsmodels.tsa.statespace.sarimax import SARIMAX
-from starlette.responses import StreamingResponse
 
 from app.explainability import ModelExplainer
 from app.security import bind_tenant_context, require_api_key
@@ -264,6 +241,14 @@ def _encode_targets_for_classification(df_y: pd.DataFrame) -> tuple[pd.DataFrame
 
 
 def _resolve_model(model_name: str, task_type: str):
+    from sklearn.base import clone
+    from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+    from sklearn.linear_model import LinearRegression, LogisticRegression
+    from sklearn.multioutput import MultiOutputClassifier, MultiOutputRegressor
+    from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
+    from sklearn.svm import SVC, SVR
+    from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
+
     name = model_name.strip().lower()
 
     regression_models = {
@@ -626,6 +611,7 @@ def _safe_feature_importance(model: Any, feature_names: List[str]) -> List[Dict[
 
 
 def _evaluate_classification(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, Any]:
+    from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
     return {
         "accuracy": float(accuracy_score(y_true, y_pred)),
         "precision": float(precision_score(y_true, y_pred, average="weighted", zero_division=0)),
@@ -635,6 +621,7 @@ def _evaluate_classification(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str
 
 
 def _evaluate_regression(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, Any]:
+    from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
     mse = float(mean_squared_error(y_true, y_pred))
     return {
         "r2": float(r2_score(y_true, y_pred)),
@@ -671,6 +658,11 @@ def _encode_binary_outcome(series: pd.Series) -> Optional[pd.Series]:
 
 @router.post("/api/statistics-math/analyze")
 def statistics_math_analysis(request: StatisticsMathRequest) -> Dict[str, Any]:
+    from scipy.stats import beta as beta_distribution, chi2_contingency, f_oneway, norm, t, ttest_ind
+    from statsmodels.stats.proportion import proportions_ztest
+    from statsmodels.tsa.arima.model import ARIMA
+    from statsmodels.tsa.statespace.sarimax import SARIMAX
+
     if request.dataset_id not in DATASETS:
         raise HTTPException(status_code=404, detail="Dataset not found")
 
@@ -1286,6 +1278,7 @@ def cluster_dataset(request: ClusterRequest) -> Dict[str, Any]:
     if numeric_prepared.empty:
         raise HTTPException(status_code=400, detail="Clustering requires numeric or encoded features")
 
+    from sklearn.preprocessing import StandardScaler
     scaler = StandardScaler()
     x_np = scaler.fit_transform(numeric_prepared)
 
