@@ -298,10 +298,10 @@ function AutoEDA({ dataset }) {
                         const col1 = numericCols[ i ], col2 = numericCols[ j ]
                         const vals1 = dataset.rows.map(r => parseFloat(r[ col1 ])).filter(v => !isNaN(v))
                         const vals2 = dataset.rows.map(r => parseFloat(r[ col2 ])).filter(v => !isNaN(v))
-                        
+
                         // Skip if either column has no valid values
                         if (vals1.length === 0 || vals2.length === 0) continue
-                        
+
                         const mean1 = vals1.reduce((a, b) => a + b, 0) / vals1.length
                         const mean2 = vals2.reduce((a, b) => a + b, 0) / vals2.length
                         let num = 0, den1 = 0, den2 = 0
@@ -310,11 +310,11 @@ function AutoEDA({ dataset }) {
                             den1 += Math.pow(vals1[ k ] - mean1, 2)
                             den2 += Math.pow(vals2[ k ] - mean2, 2)
                         }
-                        
+
                         // Guard against division by zero
                         const sqrtDen = Math.sqrt(den1 * den2)
                         if (sqrtDen === 0) continue
-                        
+
                         const corr = num / sqrtDen
                         if (!isNaN(corr) && Number.isFinite(corr)) {
                             correlations.push({
