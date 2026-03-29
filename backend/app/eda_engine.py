@@ -1,6 +1,6 @@
 from typing import Any, Dict, List, Optional
 
-# Core pandas stays for type hinting if preferred, or move it too
+import numpy as np
 import pandas as pd
 
 
@@ -207,7 +207,7 @@ class EDAEngine:
             if unique_vals < 20:
                 modality = "Unimodal (Categorical-like)"
             else:
-                counts, bins = np.histogram(s, bins=s.nunique().clip(1, 30))
+                counts, bins = np.histogram(s, bins=int(np.clip(s.nunique(), 1, 30)))
                 # Find local maxima in histogram
                 max_indices = []
                 for i in range(1, len(counts)-1):
@@ -243,6 +243,10 @@ class EDAEngine:
         corr = num.corr(numeric_only=True)
         results: List[Dict[str, Any]] = []
         cols = list(corr.columns)
+
+        # Sample rows for scatter plots — cap at 200 for UI performance
+        sample_df = num.dropna().sample(min(200, len(num)), random_state=42) if len(num) > 200 else num.dropna()
+
         for i in range(len(cols)):
             for j in range(i + 1, len(cols)):
                 value = corr.iloc[i, j]
@@ -252,13 +256,21 @@ class EDAEngine:
                     if abs_val >= 0.9: strength = "Very Strong"
                     elif abs_val >= 0.7: strength = "Strong"
                     elif abs_val >= 0.4: strength = "Moderate"
-                    
+
+                    # Build scatter data points for the frontend chart
+                    pair = sample_df[[cols[i], cols[j]]].dropna()
+                    scatter_data = [
+                        {"x": round(float(row[cols[i]]), 4), "y": round(float(row[cols[j]]), 4)}
+                        for _, row in pair.iterrows()
+                    ]
+
                     results.append({
                         "feature1": cols[i],
                         "feature2": cols[j],
                         "correlation": float(value),
                         "direction": "Positive" if value > 0 else "Negative",
-                        "strength": strength
+                        "strength": strength,
+                        "scatterData": scatter_data,
                     })
         return results
 
@@ -539,3 +551,37 @@ class EDAEngine:
             {"subject": "Validity", "A": max(0, validity)},
             {"subject": "Uniqueness", "A": max(0, uniqueness)},
         ]
+
+    def _recommendations(self, df: pd.DataFrame) -> List[str]:
+        """Generate simple data-driven recommendations."""
+        recs = []
+        missing_pct = df.isna().mean().mean() * 100
+        if missing_pct > 5:
+            recs.append(f"Handle missing values ({missing_pct:.1f}% of cells are null).")
+        dup = int(df.duplicated().sum())
+        if dup > 0:
+            recs.append(f"Remove {dup} duplicate row(s) before modelling.")
+        num = df.select_dtypes(include=[np.number])
+        for col in num.columns:
+            s = num[col].dropna()
+            if len(s) > 3:
+                q1, q3 = float(s.quantile(0.25)), float(s.quantile(0.75))
+                iqr = q3 - q1
+                n_out = int(((s < q1 - 1.5 * iqr) | (s > q3 + 1.5 * iqr)).sum())
+                if n_out / max(len(s), 1) > 0.05:
+                    recs.append(f"Column '{col}' has {n_out} outliers — consider capping or removal.")
+        if not recs:
+            recs.append("Dataset looks clean. Proceed with feature engineering and modelling.")
+        return recs
+
+    def _normality_test(self, series: "pd.Series") -> Dict[str, Any]:
+        """Lightweight normality check using skewness/kurtosis."""
+        skew = float(series.skew())
+        kurt = float(series.kurtosis())
+        is_normal = abs(skew) < 0.5 and abs(kurt) < 1.0
+        return {
+            "skewness": round(skew, 4),
+            "kurtosis": round(kurt, 4),
+            "likely_normal": is_normal,
+            "note": "Based on skewness/kurtosis heuristic (|skew|<0.5, |kurt|<1).",
+        }

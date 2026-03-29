@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react'
 import { BarChart3, PieChart, TrendingUp, AlertCircle, CheckCircle, Activity, Zap, Target, Eye, Lightbulb, ArrowUp, ArrowDown, Minus, Filter, Download, RefreshCw } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartsPie, Pie, Cell, LineChart, Line, ScatterChart, Scatter, AreaChart, Area, RadialBarChart, RadialBar, Legend, ComposedChart } from 'recharts'
 import { useAnalysis } from '../context/AnalysisContext'
-import { chatAPI, queryAPI, sessionAPI, edaAPI, handleApiError } from '../services/api'
+import { chatAPI, queryAPI, sessionAPI, edaAPI, handleApiError, ensureBackendDataset } from '../services/api'
 
 const COLORS = [ '#8b5cf6', '#ec4899', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#06b6d4', '#84cc16', '#f97316', '#6366f1' ]
 
@@ -227,38 +227,39 @@ function AutoEDA({ dataset }) {
     }, [])
 
     const runAnalysis = async () => {
-        if (!dataset || !dataset.id) return;
-        setAnalyzing(true);
+        if (!dataset) return
+        setAnalyzing(true)
         try {
-            // Optionally, create a session if needed (already handled in useEffect)
-            const analysisResponse = await edaAPI.analyzeDataset(dataset.id, qaSessionId);
-            // Analysis is returned synchronously by the backend endpoint
-            const edaResults = analysisResponse.eda || analysisResponse;
-            setResults(edaResults);
-            setEdaResults(edaResults);
-            setBusinessAnswer('');
-            setBusinessConfidence(null);
-            setHypothesisResult(null);
+            const backendId = await ensureBackendDataset(dataset)
+            const sessionId = qaSessionId || `eda-${Date.now()}`
+            const analysisResponse = await edaAPI.analyzeDataset(backendId, sessionId)
+            const edaResults = analysisResponse.eda || analysisResponse
+            setResults(edaResults)
+            setEdaResults(edaResults)
+            setBusinessAnswer('')
+            setBusinessConfidence(null)
+            setHypothesisResult(null)
         } catch (error) {
-            console.error('Backend EDA error:', error);
+            console.error('Backend EDA error:', error)
             setResults({
                 summary: { rows: dataset.rowCount, columns: dataset.colCount, numericCols: 0, categoricalCols: 0, missingTotal: 0, duplicateRows: 0, outlierTotal: 0 },
-                missingData: [], statistics: [], correlations: [], categoricalAnalysis: [], qualityScore: 0, 
+                missingData: [], statistics: [], correlations: [], categoricalAnalysis: [], qualityScore: 0,
                 insights: [ {
-                    type: 'warning', title: 'Analysis Error', desc: 'An error occurred during backend EDA. Most sections will be empty.',
+                    type: 'warning', title: 'Analysis Error',
+                    desc: error?.message || 'An error occurred during backend EDA.',
                     action: 'Check your data and try again'
-                } ], 
+                } ],
                 qualityRadar: [
-                    { subject: 'Completeness', A: 0 }, { subject: 'Consistency', A: 0 }, 
+                    { subject: 'Completeness', A: 0 }, { subject: 'Consistency', A: 0 },
                     { subject: 'Validity', A: 0 }, { subject: 'Uniqueness', A: 0 }
                 ],
-                typeCount: [], numericColumns: [], dateColumns: [], 
-                correlationHeatmap: { labels: [], values: [] }, 
+                typeCount: [], numericColumns: [], dateColumns: [],
+                correlationHeatmap: { labels: [], values: [] },
                 missingHeatmap: { labels: [], rowLabels: [], values: [] },
                 trendInsights: [], segmentationInsights: [], comparativeInsights: [], behavioralInsights: []
-            });
+            })
         }
-        setAnalyzing(false);
+        setAnalyzing(false)
     }
 
     const handleBusinessQuestion = async () => {
@@ -1168,65 +1169,71 @@ function AutoEDA({ dataset }) {
                                     <p className="py-10 text-center text-sm text-slate-500">Unable to render chart with current selections. Try another column combination.</p>
                                 ) : (
                                     <div ref={vizChartRef}>
-                                        <ResponsiveContainer width="100%" height={380}>
-                                            <>
-                                                {vizChartType === 'bar' && (
-                                                    <BarChart data={vizData}>
-                                                        <CartesianGrid strokeDasharray="3 3" />
-                                                        <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                                                        <YAxis />
-                                                        <Tooltip />
-                                                        <Bar dataKey="value" fill="#6366f1" radius={[ 6, 6, 0, 0 ]} />
-                                                    </BarChart>
-                                                )}
+                                        {vizChartType === 'bar' && (
+                                            <ResponsiveContainer width="100%" height={380}>
+                                                <BarChart data={vizData}>
+                                                    <CartesianGrid strokeDasharray="3 3" />
+                                                    <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                                                    <YAxis />
+                                                    <Tooltip />
+                                                    <Bar dataKey="value" fill="#6366f1" radius={[ 6, 6, 0, 0 ]} />
+                                                </BarChart>
+                                            </ResponsiveContainer>
+                                        )}
 
-                                                {vizChartType === 'line' && (
-                                                    <LineChart data={vizData}>
-                                                        <CartesianGrid strokeDasharray="3 3" />
-                                                        <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                                                        <YAxis />
-                                                        <Tooltip />
-                                                        <Line type="monotone" dataKey="value" stroke="#06b6d4" strokeWidth={3} dot={false} />
-                                                    </LineChart>
-                                                )}
+                                        {vizChartType === 'line' && (
+                                            <ResponsiveContainer width="100%" height={380}>
+                                                <LineChart data={vizData}>
+                                                    <CartesianGrid strokeDasharray="3 3" />
+                                                    <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                                                    <YAxis />
+                                                    <Tooltip />
+                                                    <Line type="monotone" dataKey="value" stroke="#06b6d4" strokeWidth={3} dot={false} />
+                                                </LineChart>
+                                            </ResponsiveContainer>
+                                        )}
 
-                                                {vizChartType === 'area' && (
-                                                    <AreaChart data={vizData}>
-                                                        <defs>
-                                                            <linearGradient id="vizArea" x1="0" y1="0" x2="0" y2="1">
-                                                                <stop offset="5%" stopColor="#10b981" stopOpacity={0.7} />
-                                                                <stop offset="95%" stopColor="#10b981" stopOpacity={0.1} />
-                                                            </linearGradient>
-                                                        </defs>
-                                                        <CartesianGrid strokeDasharray="3 3" />
-                                                        <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                                                        <YAxis />
-                                                        <Tooltip />
-                                                        <Area type="monotone" dataKey="value" stroke="#10b981" fill="url(#vizArea)" />
-                                                    </AreaChart>
-                                                )}
+                                        {vizChartType === 'area' && (
+                                            <ResponsiveContainer width="100%" height={380}>
+                                                <AreaChart data={vizData}>
+                                                    <defs>
+                                                        <linearGradient id="vizArea" x1="0" y1="0" x2="0" y2="1">
+                                                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.7} />
+                                                            <stop offset="95%" stopColor="#10b981" stopOpacity={0.1} />
+                                                        </linearGradient>
+                                                    </defs>
+                                                    <CartesianGrid strokeDasharray="3 3" />
+                                                    <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                                                    <YAxis />
+                                                    <Tooltip />
+                                                    <Area type="monotone" dataKey="value" stroke="#10b981" fill="url(#vizArea)" />
+                                                </AreaChart>
+                                            </ResponsiveContainer>
+                                        )}
 
-                                                {vizChartType === 'pie' && (
-                                                    <RechartsPie>
-                                                        <Tooltip />
-                                                        <Legend />
-                                                        <Pie data={vizData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={130} label>
-                                                            {vizData.map((_, idx) => <Cell key={`viz-pie-${idx}`} fill={COLORS[ idx % COLORS.length ]} />)}
-                                                        </Pie>
-                                                    </RechartsPie>
-                                                )}
+                                        {vizChartType === 'pie' && (
+                                            <ResponsiveContainer width="100%" height={380}>
+                                                <RechartsPie>
+                                                    <Tooltip />
+                                                    <Legend />
+                                                    <Pie data={vizData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={150} label>
+                                                        {vizData.map((_, idx) => <Cell key={`viz-pie-${idx}`} fill={COLORS[ idx % COLORS.length ]} />)}
+                                                    </Pie>
+                                                </RechartsPie>
+                                            </ResponsiveContainer>
+                                        )}
 
-                                                {vizChartType === 'scatter' && (
-                                                    <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
-                                                        <CartesianGrid strokeDasharray="3 3" />
-                                                        <XAxis dataKey="x" name={vizXColumn} type="number" />
-                                                        <YAxis dataKey="y" name={vizYColumn} type="number" />
-                                                        <Tooltip cursor={{ strokeDasharray: '3 3' }} />
-                                                        <Scatter data={vizData} fill="#f97316" />
-                                                    </ScatterChart>
-                                                )}
-                                            </>
-                                        </ResponsiveContainer>
+                                        {vizChartType === 'scatter' && (
+                                            <ResponsiveContainer width="100%" height={380}>
+                                                <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+                                                    <CartesianGrid strokeDasharray="3 3" />
+                                                    <XAxis dataKey="x" name={vizXColumn} type="number" />
+                                                    <YAxis dataKey="y" name={vizYColumn} type="number" />
+                                                    <Tooltip cursor={{ strokeDasharray: '3 3' }} />
+                                                    <Scatter data={vizData} fill="#f97316" />
+                                                </ScatterChart>
+                                            </ResponsiveContainer>
+                                        )}
                                     </div>
                                 )}
 

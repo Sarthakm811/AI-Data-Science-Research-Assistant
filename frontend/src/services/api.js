@@ -104,7 +104,7 @@ export const datasetAPI = {
         if (!response.ok) throw new Error('Failed to fetch dataset preview');
         return response.json();
     },
-    
+
     async cleanDataset(datasetId, cleaningRequest) {
         const response = await fetch(`${API_V1}/datasets/${datasetId}/clean`, {
             method: 'POST',
@@ -398,6 +398,69 @@ export const systemAPI = {
         return response.json();
     }
 };
+
+// ==================== Kaggle ====================
+
+export const kaggleAPI = {
+    async search({ query, page = 1, kaggle_username = null, kaggle_key = null }) {
+        const response = await fetch(`${API_V1}/kaggle/search`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify({ query, page, kaggle_username, kaggle_key })
+        })
+        if (!response.ok) throw new Error('Failed to search Kaggle datasets')
+        return response.json()
+    },
+
+    async download(datasetRef, kaggleUsername = null, kaggleKey = null) {
+        const response = await fetch(`${API_V1}/kaggle/download`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify({
+                dataset_ref: datasetRef,
+                kaggle_username: kaggleUsername,
+                kaggle_key: kaggleKey
+            })
+        })
+        if (!response.ok) throw new Error('Failed to download Kaggle dataset')
+        return response.json()
+    }
+}
+
+// ==================== Shared Utility ====================
+
+/**
+ * Ensures a dataset object has a backend id.
+ * If dataset.id is already set, returns it immediately.
+ * Otherwise uploads the in-memory rows as CSV and returns the new backend id.
+ */
+export async function ensureBackendDataset(dataset) {
+    if (dataset?.id) return dataset.id
+
+    if (!dataset?.headers?.length) throw new Error('Dataset has no headers to upload.')
+
+    const headers = dataset.headers
+    const rows = dataset.rows || []
+    const escapeCell = (v) => {
+        const t = v == null ? '' : String(v)
+        return (t.includes(',') || t.includes('"') || t.includes('\n'))
+            ? `"${t.replace(/"/g, '""')}"` : t
+    }
+    const csvText = [
+        headers.map(escapeCell).join(','),
+        ...rows.map((r) => headers.map((h) => escapeCell(r?.[ h ])).join(','))
+    ].join('\n')
+
+    const uploadName = (dataset.name || 'dataset').endsWith('.csv')
+        ? (dataset.name || 'dataset.csv')
+        : `${dataset.name || 'dataset'}.csv`
+
+    const uploaded = await datasetAPI.uploadDataset(
+        new File([ csvText ], uploadName, { type: 'text/csv' })
+    )
+    if (!uploaded?.id) throw new Error('Backend did not return a dataset id after upload.')
+    return uploaded.id
+}
 
 // ==================== Error Handler ====================
 

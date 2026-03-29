@@ -1,22 +1,11 @@
 import pytest
-from unittest.mock import Mock, AsyncMock, patch
+from unittest.mock import Mock, patch
 from app.services.agent_service import AgentService
-from app.services.redis_service import RedisService
-
-
-@pytest.fixture
-def mock_redis():
-    redis = Mock(spec=RedisService)
-    redis.get_history = AsyncMock(return_value=[])
-    redis.get_session = AsyncMock(return_value={})
-    redis.append_to_history = AsyncMock()
-    redis.set_session = AsyncMock()
-    return redis
 
 
 @pytest.mark.asyncio
-async def test_handle_query_basic(mock_redis):
-    """Test basic query handling"""
+async def test_handle_query_basic():
+    """Test basic query handling."""
     with patch("google.generativeai.GenerativeModel") as mock_model:
         mock_response = Mock()
         mock_response.text = """
@@ -33,7 +22,7 @@ Test explanation
 """
         mock_model.return_value.generate_content.return_value = mock_response
 
-        agent = AgentService(mock_redis)
+        agent = AgentService()
         result = await agent.handle_query(session_id="test-session", query="Test query")
 
         assert result["status"] == "completed"
@@ -44,8 +33,8 @@ Test explanation
 
 @pytest.mark.asyncio
 async def test_parse_response():
-    """Test response parsing"""
-    agent = AgentService(Mock(spec=RedisService))
+    """Test response parsing."""
+    agent = AgentService.__new__(AgentService)
 
     response_text = """
 PLAN:

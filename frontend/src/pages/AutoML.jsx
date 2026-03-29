@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react'
 import { Play, AlertCircle } from 'lucide-react'
 import MLResults from '../components/MLResults'
 import { useAnalysis } from '../context/AnalysisContext'
-import { datasetAPI, mlAPI } from '../services/api'
+import { datasetAPI, ensureBackendDataset } from '../services/api'
 
 const MODEL_OPTIONS = [
     { label: 'Linear Regression', value: 'Linear Regression', mode: 'regression' },
@@ -199,19 +199,7 @@ function AutoML({ dataset, setDataset }) {
 
         setSyncingDataset(true)
         try {
-            const csvText = buildCsvFromDataset()
-            const formData = new FormData()
-            const uploadName = (dataset?.name || 'dataset').endsWith('.csv')
-                ? (dataset?.name || 'dataset.csv')
-                : `${dataset?.name || 'dataset'}.csv`
-            const file = new File([ csvText ], uploadName, { type: 'text/csv' })
-
-            const uploadPayload = await datasetAPI.uploadDataset(file)
-            const backendId = uploadPayload?.id
-            if (!backendId) {
-                throw new Error('Backend dataset id missing after upload')
-            }
-
+            const backendId = await ensureBackendDataset(dataset)
             window.sessionStorage.setItem(cacheKey, backendId)
             setSyncedDatasetId(backendId)
             return backendId
@@ -385,12 +373,19 @@ function AutoML({ dataset, setDataset }) {
         try {
             const backendDatasetId = await ensureDatasetOnBackend()
 
-            let response
             const VITE_API_URL = import.meta.env.VITE_API_URL || ''
+            const API_KEY = import.meta.env.VITE_API_KEY || 'dev-local-9f4e1d2c7a8b3f6e'
+            const authHeaders = {
+                'Content-Type': 'application/json',
+                'X-API-Key': API_KEY,
+                'X-Tenant-Id': 'public',
+            }
+
+            let response
             if (config.workflow === 'clustering') {
                 response = await fetch(`${VITE_API_URL}/api/ml/cluster`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: authHeaders,
                     body: JSON.stringify({
                         dataset_id: backendDatasetId,
                         x_columns: config.xColumns,
@@ -403,7 +398,7 @@ function AutoML({ dataset, setDataset }) {
             } else if (config.workflow === 'compare') {
                 response = await fetch(`${VITE_API_URL}/api/ml/train`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: authHeaders,
                     body: JSON.stringify({
                         datasetId: backendDatasetId,
                         targetColumn: config.yColumns[ 0 ],
@@ -418,7 +413,7 @@ function AutoML({ dataset, setDataset }) {
             } else {
                 response = await fetch(`${VITE_API_URL}/api/ml/train-selected`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: authHeaders,
                     body: JSON.stringify({
                         dataset_id: backendDatasetId,
                         model_name: config.modelName,

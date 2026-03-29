@@ -10,7 +10,6 @@ services:
       GEMINI_API_KEY: ${GEMINI_API_KEY:-dev_key_placeholder}
       KAGGLE_USERNAME: ${KAGGLE_USERNAME:-}
       KAGGLE_KEY: ${KAGGLE_KEY:-}
-      REDIS_URL: ${REDIS_URL:-redis://host.docker.internal:6379}
       DATABASE_URL: ${DATABASE_URL:-sqlite:///./app.db}
       SECRET_KEY: ${SECRET_KEY:-dev-local-9f4e1d2c7a8b3f6e}
       ENFORCE_API_KEY: ${ENFORCE_API_KEY:-true}

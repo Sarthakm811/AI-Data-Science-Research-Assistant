@@ -4,7 +4,7 @@ import uuid
 import logging
 
 from app.utils.config import settings
-from app.services.redis_service import RedisService
+from app.services.session_store import get_store
 from app.tools.kaggle_tool import KaggleTool
 from app.tools.execution_tool import ExecutionTool
 
@@ -12,50 +12,40 @@ logger = logging.getLogger(__name__)
 
 
 class AgentService:
-    def __init__(self, redis_service: RedisService):
+    def __init__(self):
         genai.configure(api_key=settings.gemini_api_key)
         self.model = genai.GenerativeModel("models/gemini-2.0-flash")
-        self.redis = redis_service
-        # Lazily instantiate external tools to avoid network/auth side-effects during import/tests
-        self.kaggle_tool = None
-        self.execution_tool = None
+        self.store = get_store()
+        self.kaggle_tool: Optional[KaggleTool] = None
+        self.execution_tool: Optional[ExecutionTool] = None
 
     async def handle_query(
         self, session_id: str, query: str, dataset_id: Optional[str] = None
     ) -> Dict[str, Any]:
-        """Main orchestration logic"""
+        """Main orchestration logic."""
         job_id = str(uuid.uuid4())
 
         try:
-            # Get session context
-            history = await self.redis.get_history(session_id, limit=5)
-            session_data = await self.redis.get_session(session_id) or {}
+            history = self.store.get_history(session_id, limit=5)
+            session_data = self.store.get_session(session_id) or {}
 
-            # Get dataset info if provided
             dataset_summary = ""
             if dataset_id:
-                # instantiate KaggleTool only when needed (avoids network/auth during tests)
                 if self.kaggle_tool is None:
                     self.kaggle_tool = KaggleTool()
                 dataset_summary = await self.kaggle_tool.get_dataset_summary(dataset_id)
                 session_data["current_dataset"] = dataset_id
 
-            # Build prompt
             prompt = self._build_prompt(query, dataset_summary, history)
 
-            # Call Gemini
             logger.info(f"Calling Gemini for job {job_id}")
             response = self.model.generate_content(prompt)
 
-            # Parse response
             plan, code, explanation = self._parse_response(response.text)
 
-            # Execute code if generated
             results = None
             artifacts = []
             if code:
-                logger.info(f"Executing code for job {job_id}")
-                # instantiate ExecutionTool lazily to avoid side-effects during tests
                 if self.execution_tool is None:
                     self.execution_tool = ExecutionTool()
                 exec_result = await self.execution_tool.execute(
@@ -64,11 +54,10 @@ class AgentService:
                 results = exec_result.get("results")
                 artifacts = exec_result.get("artifacts", [])
 
-            # Update session
-            await self.redis.append_to_history(
+            self.store.append_to_history(
                 session_id, {"query": query, "response": explanation, "job_id": job_id}
             )
-            await self.redis.set_session(session_id, session_data)
+            self.store.set_session(session_id, session_data)
 
             return {
                 "job_id": job_id,
@@ -85,11 +74,9 @@ class AgentService:
             return {"job_id": job_id, "status": "failed", "error": str(e)}
 
     def _build_prompt(self, query: str, dataset_summary: str, history: list) -> str:
-        """Build prompt for Gemini"""
         context = "\n".join(
             [f"Q: {h.get('query')}\nA: {h.get('response')}" for h in history[-3:]]
         )
-
         return f"""You are an expert data scientist assistant. Given a dataset and user question, provide:
 
 1. ANALYSIS PLAN: A brief plan (2-3 sentences)
@@ -123,11 +110,9 @@ EXPLANATION:
 """
 
     def _parse_response(self, response_text: str) -> tuple:
-        """Extract plan, code, and explanation from response"""
         plan = ""
         code = ""
         explanation = ""
-
         lines = response_text.split("\n")
         current_section = None
         code_block = False

@@ -9,9 +9,6 @@ class Settings(BaseSettings):
     kaggle_username: Optional[str] = None
     kaggle_key: Optional[str] = None
 
-    # Redis
-    redis_url: str = "redis://localhost:6379"
-
     # Database
     database_url: Optional[str] = None
 

@@ -8,19 +8,19 @@ import os
 from typing import Any, Dict, List
 
 from fastapi import FastAPI
-
 from fastapi.middleware.cors import CORSMiddleware
-
 
 from app.api.runtime_compat import router as runtime_router
 from app.api.enhanced_query import router as enhanced_router
+from app.api.sessions import router as sessions_router
+from app.api.query import router as query_router
+from app.api.langchain_query import router as langchain_router
+from app.api.datasets import router as datasets_router
 from app.runtime_state import ml_engine
 from mcp.api_routes import router as mcp_router
 
 
 app = FastAPI(title="AI Data Science Assistant API", version="2.2.0")
-
-
 
 
 def _allowed_origins() -> List[str]:
@@ -39,9 +39,12 @@ app.add_middleware(
     max_age=600,
 )
 
-# Mount runtime compatibility/data/ML routes from dedicated module.
 app.include_router(runtime_router, prefix="/api")
 app.include_router(enhanced_router, prefix="/api")
+app.include_router(sessions_router, prefix="/api")
+app.include_router(query_router, prefix="/api")
+app.include_router(langchain_router, prefix="/api")
+app.include_router(datasets_router, prefix="/api")
 app.include_router(mcp_router, prefix="/api")
 
 
@@ -63,5 +66,4 @@ def health() -> Dict[str, Any]:
 
 if __name__ == "__main__":
     import uvicorn
-
     uvicorn.run(app, host="0.0.0.0", port=8000)

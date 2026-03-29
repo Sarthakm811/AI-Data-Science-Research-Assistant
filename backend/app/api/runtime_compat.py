@@ -17,13 +17,17 @@ from contextlib import contextmanager
 from typing import Any, Dict, List, Optional
 
 from starlette.responses import StreamingResponse
-from starlette.responses import StreamingResponse
 
 import joblib
 import numpy as np
 import pandas as pd
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel, ConfigDict, Field
+from sklearn.preprocessing import LabelEncoder
+from sklearn.model_selection import train_test_split, StratifiedKFold, KFold, cross_val_score
+from sklearn.multioutput import MultiOutputClassifier, MultiOutputRegressor
+from sklearn.base import clone
+from sklearn.metrics import confusion_matrix, roc_auc_score, roc_curve
 
 from app.explainability import ModelExplainer
 from app.security import bind_tenant_context, require_api_key
@@ -516,7 +520,7 @@ def _clean_dataframe(df: pd.DataFrame, req: DataCleaningRequest) -> tuple[pd.Dat
     cleaned = df.copy()
 
     before_rows = int(len(cleaned))
-    before_missing = int(cleaned.applymap(_is_missing).sum().sum())
+    before_missing = int(cleaned.apply(lambda col: col.map(_is_missing)).sum().sum())
 
     if req.trim_text:
         obj_cols = cleaned.select_dtypes(include=["object", "string", "category"]).columns
@@ -528,7 +532,7 @@ def _clean_dataframe(df: pd.DataFrame, req: DataCleaningRequest) -> tuple[pd.Dat
     category_summary = _apply_category_standardization(cleaned, req)
 
     if req.missing_strategy == "drop_rows":
-        mask = cleaned.apply(lambda row: row.map(_is_missing).any(), axis=1)
+        mask = cleaned.apply(lambda row: row.apply(_is_missing).any(), axis=1)
         cleaned = cleaned.loc[~mask].copy()
     else:
         for col in cleaned.columns:
@@ -564,7 +568,7 @@ def _clean_dataframe(df: pd.DataFrame, req: DataCleaningRequest) -> tuple[pd.Dat
 
     smoothing_summary = _apply_noise_smoothing(cleaned, req)
 
-    after_missing = int(cleaned.applymap(_is_missing).sum().sum())
+    after_missing = int(cleaned.apply(lambda col: col.map(_is_missing)).sum().sum())
 
     summary = {
         "rows_before": before_rows,

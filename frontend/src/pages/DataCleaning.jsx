@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react'
 import { Sparkles, Wand2, AlertCircle, CheckCircle2, SlidersHorizontal, Download, ChevronDown, ChevronUp } from 'lucide-react'
-import { datasetAPI } from '../services/api'
+import { datasetAPI, ensureBackendDataset } from '../services/api'
 const DEFAULT_STOPWORDS = new Set([
     'a', 'an', 'and', 'are', 'as', 'at', 'be', 'by', 'for', 'from', 'has', 'he', 'in', 'is',
     'it', 'its', 'of', 'on', 'that', 'the', 'to', 'was', 'were', 'will', 'with', 'or', 'not'
@@ -433,26 +433,25 @@ function DataCleaning({ dataset, setDataset }) {
         }
 
         // Prefer backend cleaning when dataset has an id so output is versioned and reusable.
-        if (dataset.id) {
-            try {
-                const payload = await datasetAPI.cleanDataset(dataset.id, requestPayload)
+        try {
+            const backendId = await ensureBackendDataset(dataset)
+            const payload = await datasetAPI.cleanDataset(backendId, requestPayload)
 
-                setDataset(payload.dataset)
-                const summary = payload.clean_summary || {}
-                setDiffPreview(buildColumnDiff(beforeSnapshotRows, payload.dataset?.rows || [], payload.dataset?.headers || beforeSnapshotHeaders))
-                setCleanSummary({
-                    rowsBefore: summary.rows_before ?? dataset.rowCount,
-                    rowsAfter: summary.rows_after ?? payload.dataset.rowCount,
-                    removedRows: summary.removed_rows ?? 0,
-                    missingBefore: summary.missing_before ?? 0,
-                    missingAfter: summary.missing_after ?? 0,
-                    operations: summary.operations || {}
-                })
-                setCleaning(false)
-                return
-            } catch (err) {
-                setApiError(err.message || 'Backend cleaning failed. Falling back to local cleaning.')
-            }
+            setDataset(payload.dataset)
+            const summary = payload.clean_summary || {}
+            setDiffPreview(buildColumnDiff(beforeSnapshotRows, payload.dataset?.rows || [], payload.dataset?.headers || beforeSnapshotHeaders))
+            setCleanSummary({
+                rowsBefore: summary.rows_before ?? dataset.rowCount,
+                rowsAfter: summary.rows_after ?? payload.dataset.rowCount,
+                removedRows: summary.removed_rows ?? 0,
+                missingBefore: summary.missing_before ?? 0,
+                missingAfter: summary.missing_after ?? 0,
+                operations: summary.operations || {}
+            })
+            setCleaning(false)
+            return
+        } catch (err) {
+            setApiError(err.message || 'Backend cleaning failed. Falling back to local cleaning.')
         }
 
         const headers = [ ...dataset.headers ]
@@ -683,6 +682,23 @@ function DataCleaning({ dataset, setDataset }) {
             rows,
             rowCount: rows.length,
             colCount: headers.length
+        }
+
+        // Sync cleaned data back to backend so downstream EDA/ML have a valid id
+        try {
+            const uploadName = updated.name.endsWith('.csv') ? updated.name : `${updated.name}.csv`
+            const escapeCell = (v) => {
+                const t = v == null ? '' : String(v)
+                return (t.includes(',') || t.includes('"') || t.includes('\n')) ? `"${t.replace(/"/g, '""')}"` : t
+            }
+            const csvText = [
+                headers.map(escapeCell).join(','),
+                ...rows.map((r) => headers.map((h) => escapeCell(r?.[ h ])).join(','))
+            ].join('\n')
+            const synced = await datasetAPI.uploadDataset(new File([ csvText ], uploadName, { type: 'text/csv' }))
+            updated.id = synced.id
+        } catch (_syncErr) {
+            // Non-fatal — local data is still usable, just won't have a backend id
         }
 
         setDataset(updated)

@@ -14,7 +14,7 @@ import {
     Cell
 } from 'recharts'
 import { useAnalysis } from '../context/AnalysisContext'
-import { statisticsAPI } from '../services/api'
+import { statisticsAPI, ensureBackendDataset } from '../services/api'
 
 function inferColumns(dataset) {
     const headers = dataset?.headers || []
@@ -116,8 +116,8 @@ function StatisticsMath({ dataset }) {
     })
 
     const runAnalysis = async () => {
-        if (!dataset?.id) {
-            setError('Dataset ID is missing. Please upload/search and select a backend dataset first.')
+        if (!dataset?.headers?.length) {
+            setError('Dataset is empty or not loaded.')
             return
         }
 
@@ -127,6 +127,8 @@ function StatisticsMath({ dataset }) {
         setStatsMathResults(null)
 
         try {
+            const backendId = await ensureBackendDataset(dataset)
+
             const parseOrder = (text, fallback) => {
                 const parts = String(text || '')
                     .split(',')
@@ -135,7 +137,7 @@ function StatisticsMath({ dataset }) {
                 return parts.length >= 3 ? parts.slice(0, 3) : fallback
             }
 
-            const data = await statisticsAPI.analyze(dataset.id, {
+            const data = await statisticsAPI.analyze(backendId, {
                 numeric_column: config.numericColumn || null,
                 group_column: config.groupColumn || null,
                 categorical_column: config.categoricalColumn || null,

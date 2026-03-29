@@ -97,8 +97,6 @@ class EnhancedAgentService:
                 )
                 results["notebook_path"] = notebook_path
 
-            # Session/history update skipped (no Redis)
-
             return results
 
         except Exception as e:

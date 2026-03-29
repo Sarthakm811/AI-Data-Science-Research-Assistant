@@ -174,17 +174,19 @@ class MLEngine:
         
     def _check_gpu(self):
         """Check for GPU availability"""
+        import logging
+        _log = logging.getLogger(__name__)
         # Check CUDA for PyTorch
         try:
             import torch
             if torch.cuda.is_available():
                 self.gpu_available = True
                 self.gpu_name = torch.cuda.get_device_name(0)
-                print(f"✅ GPU Found: {self.gpu_name}")
+                _log.info("GPU Found: %s", self.gpu_name)
                 return
         except ImportError:
             pass
-        
+
         # Check TensorFlow GPU
         try:
             import tensorflow as tf
@@ -192,12 +194,12 @@ class MLEngine:
             if gpus:
                 self.gpu_available = True
                 self.gpu_name = gpus[0].name
-                print(f"✅ TensorFlow GPU Found: {self.gpu_name}")
+                _log.info("TensorFlow GPU Found: %s", self.gpu_name)
                 return
         except ImportError:
             pass
-        
-        print("⚠️ No GPU detected, using CPU")
+
+        _log.info("No GPU detected, using CPU")
     
     def get_gpu_status(self) -> Dict[str, Any]:
         """Get detailed GPU status"""
@@ -505,14 +507,14 @@ class MLEngine:
                 stratify=y,
                 random_state=42
             )
-            print(f"⚠️ SAMPLING: Dataset has {len(X)} rows. Using stratified sample of {sample_size} rows for faster training.")
+            print(f"SAMPLING: Dataset has {len(X)} rows. Using stratified sample of {sample_size} rows for faster training.")
             return X_sampled, y_sampled, True
         else:
             # For regression, use random sampling
             indices = np.random.RandomState(42).choice(len(X), size=sample_size, replace=False)
             X_sampled = X[indices]
             y_sampled = y[indices]
-            print(f"⚠️ SAMPLING: Dataset has {len(X)} rows. Using random sample of {sample_size} rows for faster training.")
+            print(f"SAMPLING: Dataset has {len(X)} rows. Using random sample of {sample_size} rows for faster training.")
             return X_sampled, y_sampled, True
     
     def train_all_models(
@@ -698,10 +700,10 @@ class MLEngine:
                     best_model = model
                     best_model_name = name
                 
-                print(f"✅ {name}: {score:.4f} ({train_time:.2f}s)")
-                
+                print(f"[OK] {name}: {score:.4f} ({train_time:.2f}s)")
+
             except Exception as e:
-                print(f"❌ {name}: {str(e)}")
+                print(f"[SKIP] {name}: {str(e)}")
                 continue
         
         # Sort results
