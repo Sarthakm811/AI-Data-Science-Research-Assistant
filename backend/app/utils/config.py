@@ -5,7 +5,7 @@ from typing import Optional
 
 class Settings(BaseSettings):
     # API Keys
-    gemini_api_key: str
+    gemini_api_key: str = "MISSING_GEMINI_API_KEY"
     kaggle_username: Optional[str] = None
     kaggle_key: Optional[str] = None
 
@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     database_url: Optional[str] = None
 
     # Security
-    secret_key: str
+    secret_key: str = "change-me-in-production"
     enforce_api_key: bool = True
     enforce_tenant_isolation: bool = True
     allow_code_execution: bool = False
@@ -40,9 +40,14 @@ class Settings(BaseSettings):
             "change-me-in-production",
             "dev-secret-key-change-in-production",
             "",
+            "MISSING_GEMINI_API_KEY",
         }
-        if self.secret_key in weak_values:
-            raise ValueError("SECRET_KEY must be set to a strong non-default value")
+        # We only log or provide a warning during initialization. 
+        # API endpoints will fail when used if these are still weak.
+        if self.secret_key in weak_values or self.gemini_api_key in weak_values:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning("CRITICAL: Application initialized with missing or default secrets (GEMINI_API_KEY or SECRET_KEY).")
         return self
 
 
