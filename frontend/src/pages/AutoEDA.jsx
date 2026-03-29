@@ -329,6 +329,16 @@ function AutoEDA({ dataset }) {
                 ))
             }
 
+            // Define date columns first (used across all insights)
+            const dateColumns = inferDateColumns(dataset.headers, dataset.rows)
+            const primaryDateColumn = dateColumns[ 0 ] || null
+
+            // Insight arrays for aggregation
+            let trendInsights = []
+            let segmentationInsights = []
+            let comparativeInsights = []
+            let behavioralInsights = []
+
             // Categorical analysis
             const categoricalAnalysis = categoricalCols.map(col => {
                 const valueCounts = {}
@@ -338,14 +348,12 @@ function AutoEDA({ dataset }) {
                 })
                 const sorted = Object.entries(valueCounts).sort((a, b) => b[ 1 ] - a[ 1 ])
 
-                const dateColumns = inferDateColumns(dataset.headers, dataset.rows)
-                const primaryDateColumn = dateColumns[ 0 ] || null
                 const revenueColumn = pickNumericByKeyword(numericCols, [ 'revenue', 'sales', 'amount', 'price', 'value', 'total' ])
                 const customerColumn = categoricalCols.find((c) => /customer|client|user|account|buyer|member/i.test(c)) || null
                 const regionColumn = categoricalCols.find((c) => /region|country|state|city|territory|zone/i.test(c)) || null
                 const productColumn = categoricalCols.find((c) => /product|category|item|sku|brand|segment/i.test(c)) || null
 
-                const trendInsights = []
+                const colTrendInsights = []
                 if (primaryDateColumn) {
                     const monthly = {}
                     dataset.rows.forEach((row) => {
@@ -365,7 +373,7 @@ function AutoEDA({ dataset }) {
                         const first = orderedMonths[ 0 ][ 1 ].count
                         const last = orderedMonths[ orderedMonths.length - 1 ][ 1 ].count
                         const growth = first > 0 ? ((last - first) / first) * 100 : 0
-                        trendInsights.push({
+                        colTrendInsights.push({
                             title: 'Monthly Activity Trend',
                             detail: `Activity changed by ${growth.toFixed(1)}% from ${orderedMonths[ 0 ][ 0 ]} to ${orderedMonths[ orderedMonths.length - 1 ][ 0 ]}.`,
                             confidence: Math.abs(growth) > 15 ? 'High' : 'Medium'
@@ -375,7 +383,7 @@ function AutoEDA({ dataset }) {
                             .map(([ month, data ]) => ({ month, value: revenueColumn ? data.metric : data.count }))
                             .sort((a, b) => b.value - a.value)[ 0 ]
                         if (peak) {
-                            trendInsights.push({
+                            colTrendInsights.push({
                                 title: 'Peak Period',
                                 detail: `${peak.month} is the strongest period based on ${revenueColumn ? revenueColumn : 'activity volume'}.`,
                                 confidence: 'High'
@@ -395,7 +403,7 @@ function AutoEDA({ dataset }) {
                     if (maxMoY > 0 && (maxMoY - minMoY) / maxMoY > 0.35) {
                         const peakMonth = byMonthOfYear.indexOf(maxMoY)
                         const monthName = new Date(2026, peakMonth, 1).toLocaleString('en-US', { month: 'long' })
-                        trendInsights.push({
+                        colTrendInsights.push({
                             title: 'Seasonality Signal',
                             detail: `Potential seasonality detected with peak activity around ${monthName}.`,
                             confidence: 'Medium'
@@ -403,7 +411,9 @@ function AutoEDA({ dataset }) {
                     }
                 }
 
-                const segmentationInsights = []
+                trendInsights = trendInsights.concat(colTrendInsights)
+
+                const colSegmentationInsights = []
                 const segmentationColumns = [ customerColumn, productColumn, regionColumn ].filter(Boolean)
                 const segmentMetricColumn = revenueColumn || numericCols[ 0 ] || null
                 segmentationColumns.slice(0, 3).forEach((col) => {
@@ -427,7 +437,7 @@ function AutoEDA({ dataset }) {
 
                     if (total > 0) {
                         const topShare = ((segmentMetricColumn ? top.metric : top.count) / total) * 100
-                        segmentationInsights.push({
+                        colSegmentationInsights.push({
                             title: `${col} Leaders`,
                             detail: `${top.key} contributes ${topShare.toFixed(1)}% of ${segmentMetricColumn || 'records'} in this dataset.`,
                             confidence: topShare >= 40 ? 'High' : 'Medium'
@@ -438,7 +448,7 @@ function AutoEDA({ dataset }) {
                         const topVal = segmentMetricColumn ? top.metric : top.count
                         const secondVal = segmentMetricColumn ? second.metric : second.count
                         if (secondVal > 0) {
-                            segmentationInsights.push({
+                            colSegmentationInsights.push({
                                 title: `${col} Comparison`,
                                 detail: `${top.key} performs ${(topVal / secondVal).toFixed(2)}x compared with ${second.key}.`,
                                 confidence: 'Medium'
@@ -452,7 +462,7 @@ function AutoEDA({ dataset }) {
                         const topTotal = topSlice.reduce((acc, v) => acc + (segmentMetricColumn ? v.metric : v.count), 0)
                         const share = (topTotal / total) * 100
                         if (share >= 70) {
-                            segmentationInsights.push({
+                            colSegmentationInsights.push({
                                 title: 'Pareto-Like Segment Pattern',
                                 detail: `Top 20% ${col} groups account for ${share.toFixed(1)}% of ${segmentMetricColumn || 'activity'}.`,
                                 confidence: 'High'
@@ -461,7 +471,9 @@ function AutoEDA({ dataset }) {
                     }
                 })
 
-                const comparativeInsights = []
+                segmentationInsights = segmentationInsights.concat(colSegmentationInsights)
+
+                const colComparativeInsights = []
                 if (regionColumn && segmentMetricColumn) {
                     const regionAgg = {}
                     dataset.rows.forEach((row) => {
@@ -473,7 +485,7 @@ function AutoEDA({ dataset }) {
 
                     const ranked = Object.entries(regionAgg).sort((a, b) => b[ 1 ] - a[ 1 ])
                     if (ranked.length >= 2 && ranked[ 1 ][ 1 ] > 0) {
-                        comparativeInsights.push({
+                        colComparativeInsights.push({
                             title: 'Region vs Region',
                             detail: `${ranked[ 0 ][ 0 ]} is ${(ranked[ 0 ][ 1 ] / ranked[ 1 ][ 1 ]).toFixed(2)}x stronger than ${ranked[ 1 ][ 0 ]} for ${segmentMetricColumn}.`,
                             confidence: 'High'
@@ -494,7 +506,7 @@ function AutoEDA({ dataset }) {
                         const avgBefore = before.reduce((acc, r) => acc + r.m, 0) / before.length
                         const avgAfter = after.reduce((acc, r) => acc + r.m, 0) / after.length
                         const change = avgBefore !== 0 ? ((avgAfter - avgBefore) / Math.abs(avgBefore)) * 100 : 0
-                        comparativeInsights.push({
+                        colComparativeInsights.push({
                             title: 'Before vs After Trend',
                             detail: `${segmentMetricColumn} changed by ${change.toFixed(1)}% when comparing earlier vs later periods.`,
                             confidence: Math.abs(change) >= 10 ? 'High' : 'Medium'
@@ -502,7 +514,9 @@ function AutoEDA({ dataset }) {
                     }
                 }
 
-                const behavioralInsights = []
+                comparativeInsights = comparativeInsights.concat(colComparativeInsights)
+
+                const colBehavioralInsights = []
                 if (primaryDateColumn) {
                     let weekend = 0
                     let weekday = 0
@@ -516,7 +530,7 @@ function AutoEDA({ dataset }) {
                     const totalDays = weekend + weekday
                     if (totalDays > 0) {
                         const weekendShare = (weekend / totalDays) * 100
-                        behavioralInsights.push({
+                        colBehavioralInsights.push({
                             title: 'Weekday vs Weekend Behavior',
                             detail: `${weekendShare.toFixed(1)}% of records occur on weekends (${weekend} weekend vs ${weekday} weekday).`,
                             confidence: 'Medium'
@@ -536,13 +550,15 @@ function AutoEDA({ dataset }) {
                         const repeatUsers = counts.filter((c) => c > 1).length
                         const repeatShare = (repeatUsers / counts.length) * 100
                         const avgFrequency = counts.reduce((acc, v) => acc + v, 0) / counts.length
-                        behavioralInsights.push({
+                        colBehavioralInsights.push({
                             title: 'Repeat User Pattern',
                             detail: `${repeatShare.toFixed(1)}% of ${customerColumn} are repeat users with average frequency ${avgFrequency.toFixed(2)}.`,
                             confidence: repeatShare >= 40 ? 'High' : 'Medium'
                         })
                     }
                 }
+
+                behavioralInsights = behavioralInsights.concat(colBehavioralInsights)
                 const entropy = -sorted.reduce((e, [ _, count ]) => {
                     const p = count / dataset.rowCount
                     return e + (p > 0 ? p * Math.log2(p) : 0)
