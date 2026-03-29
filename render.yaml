@@ -1,0 +1,46 @@
+services:
+  - type: web
+    name: dsra-backend
+    runtime: python
+    rootDir: backend
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.11
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: SECRET_KEY
+        sync: false
+      - key: ENFORCE_API_KEY
+        value: "true"
+      - key: ENFORCE_TENANT_ISOLATION
+        value: "true"
+      - key: ALLOW_CODE_EXECUTION
+        value: "false"
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+
+  - type: static
+    name: dsra-frontend
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    autoDeploy: true
+    envVars:
+      - key: VITE_API_URL
+        sync: false
+      - key: VITE_API_KEY
+        sync: false
+      - key: VITE_TENANT_ID
+        value: prod-tenant-1
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
