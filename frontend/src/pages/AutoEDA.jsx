@@ -232,9 +232,14 @@ function AutoEDA({ dataset }) {
 
         setTimeout(() => {
             try {
-                const numericCols = dataset.headers.filter(h => {
-                    const val = dataset.rows[ 0 ]?.[ h ]
-                    return !isNaN(parseFloat(val))
+                const sampleRows = dataset.rows.slice(0, Math.min(100, dataset.rows.length))
+                const numericCols = dataset.headers.filter((h) => {
+                    const vals = sampleRows
+                        .map((r) => r?.[ h ])
+                        .filter((v) => v !== null && v !== undefined && String(v).trim() !== '')
+                    if (!vals.length) return false
+                    const numericCount = vals.filter((v) => Number.isFinite(parseFloat(v))).length
+                    return (numericCount / vals.length) >= 0.6
                 })
                 const categoricalCols = dataset.headers.filter(h => !numericCols.includes(h))
 
@@ -697,7 +702,7 @@ function AutoEDA({ dataset }) {
                         type: 'warning', icon: AlertCircle, title: 'Analysis Error', desc: 'An error occurred during analysis. Some data may be incomplete.',
                         action: 'Check your data format and try again'
                     } ], qualityRadar: [],
-                    typeCount: [], numericColumns: [], dateColumns: [], correlationHeatmap: {}, missingHeatmap: {},
+                    typeCount: [], numericColumns: [], dateColumns: [], correlationHeatmap: { labels: [], values: [] }, missingHeatmap: { labels: [], rowLabels: [], values: [] },
                     trendInsights: [], segmentationInsights: [], comparativeInsights: [], behavioralInsights: []
                 })
             }
@@ -1311,7 +1316,7 @@ function AutoEDA({ dataset }) {
                         <div className="space-y-6">
                             <div className="card">
                                 <h3 className="section-title mb-4">Correlation Heatmap</h3>
-                                {results.correlationHeatmap.labels.length > 1 ? (
+                                {(results.correlationHeatmap?.labels?.length || 0) > 1 ? (
                                     <div className="overflow-auto">
                                         <div className="inline-grid gap-1" style={{ gridTemplateColumns: `120px repeat(${results.correlationHeatmap.labels.length}, minmax(56px, 56px))` }}>
                                             <div className="bg-white" />
@@ -1321,7 +1326,7 @@ function AutoEDA({ dataset }) {
                                             {results.correlationHeatmap.labels.map((rowLabel, rIdx) => (
                                                 <React.Fragment key={`row-${rowLabel}`}>
                                                     <div className="text-[10px] font-semibold text-slate-600 truncate pr-2" title={rowLabel}>{rowLabel}</div>
-                                                    {results.correlationHeatmap.values[ rIdx ].map((value, cIdx) => (
+                                                    {(results.correlationHeatmap.values?.[ rIdx ] || []).map((value, cIdx) => (
                                                         <div
                                                             key={`cell-${rIdx}-${cIdx}`}
                                                             className="h-7 w-14 rounded text-center text-[10px] leading-7 font-semibold text-white"
