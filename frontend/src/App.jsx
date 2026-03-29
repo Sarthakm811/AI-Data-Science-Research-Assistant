@@ -84,7 +84,7 @@ function App() {
 
     return (
         <AnalysisProvider>
-            <Router basename={import.meta.env.BASE_URL}>
+            <Router basename={import.meta.env.DEV ? '/' : import.meta.env.BASE_URL}>
                 <AppLayout
                     dataset={dataset}
                     setDataset={setDataset}

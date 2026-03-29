@@ -3,10 +3,24 @@
  * Centralized API communication with backend
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 const API_V1 = `${API_BASE_URL}/api`;
+const API_KEY = import.meta.env.VITE_API_KEY || 'dev-local-9f4e1d2c7a8b3f6e';
+const TENANT_ID = 'public';
 
 console.log('API Base URL:', API_BASE_URL);
+
+/**
+ * Helper to get standardized headers for all API requests
+ * @param {Object} extraHeaders Additional headers to merge
+ * @returns {Object} Headers object
+ */
+const getHeaders = (extraHeaders = {}) => ({
+    'Content-Type': 'application/json',
+    'X-API-Key': API_KEY,
+    'X-Tenant-Id': TENANT_ID,
+    ...extraHeaders
+});
 
 // ==================== Session Management ====================
 
@@ -14,7 +28,7 @@ export const sessionAPI = {
     async createSession(userId = null) {
         const response = await fetch(`${API_V1}/sessions`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getHeaders(),
             body: JSON.stringify({ user_id: userId })
         });
         if (!response.ok) throw new Error('Failed to create session');
@@ -22,7 +36,9 @@ export const sessionAPI = {
     },
 
     async getSessionHistory(sessionId) {
-        const response = await fetch(`${API_V1}/sessions/${sessionId}/history`);
+        const response = await fetch(`${API_V1}/sessions/${sessionId}/history`, {
+            headers: getHeaders()
+        });
         if (!response.ok) throw new Error('Failed to fetch session history');
         return response.json();
     }
@@ -34,7 +50,7 @@ export const datasetAPI = {
     async searchDatasets(query, page = 1, limit = 10) {
         const response = await fetch(`${API_V1}/datasets/search`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getHeaders(),
             body: JSON.stringify({ query, page, limit })
         });
         if (!response.ok) throw new Error('Failed to search datasets');
@@ -42,13 +58,17 @@ export const datasetAPI = {
     },
 
     async getDataset(datasetId) {
-        const response = await fetch(`${API_V1}/datasets/${datasetId}`);
+        const response = await fetch(`${API_V1}/datasets/${datasetId}`, {
+            headers: getHeaders()
+        });
         if (!response.ok) throw new Error('Failed to fetch dataset');
         return response.json();
     },
 
     async listDatasets() {
-        const response = await fetch(`${API_V1}/datasets`);
+        const response = await fetch(`${API_V1}/datasets`, {
+            headers: getHeaders()
+        });
         if (!response.ok) throw new Error('Failed to fetch datasets');
         return response.json();
     },
@@ -58,6 +78,10 @@ export const datasetAPI = {
         formData.append('file', file);
         const response = await fetch(`${API_V1}/datasets/upload`, {
             method: 'POST',
+            headers: {
+                'X-API-Key': API_KEY,
+                'X-Tenant-Id': TENANT_ID
+            },
             body: formData
         });
         if (!response.ok) throw new Error('Failed to upload dataset');
@@ -66,14 +90,17 @@ export const datasetAPI = {
 
     async deleteDataset(datasetId) {
         const response = await fetch(`${API_V1}/datasets/${datasetId}`, {
-            method: 'DELETE'
+            method: 'DELETE',
+            headers: getHeaders()
         });
         if (!response.ok) throw new Error('Failed to delete dataset');
         return response.json();
     },
 
     async getDatasetPreview(datasetId, rows = 10) {
-        const response = await fetch(`${API_V1}/datasets/${datasetId}/preview?rows=${rows}`);
+        const response = await fetch(`${API_V1}/datasets/${datasetId}/preview?rows=${rows}`, {
+            headers: getHeaders()
+        });
         if (!response.ok) throw new Error('Failed to fetch dataset preview');
         return response.json();
     },
@@ -81,7 +108,7 @@ export const datasetAPI = {
     async cleanDataset(datasetId, cleaningRequest) {
         const response = await fetch(`${API_V1}/datasets/${datasetId}/clean`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getHeaders(),
             body: JSON.stringify(cleaningRequest)
         });
         if (!response.ok) throw new Error('Failed to clean dataset');
@@ -91,7 +118,7 @@ export const datasetAPI = {
     async featureEngineerDataset(datasetId, request) {
         const response = await fetch(`${API_V1}/datasets/${datasetId}/feature-engineer`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getHeaders(),
             body: JSON.stringify(request)
         });
         if (!response.ok) throw new Error('Failed to save engineered dataset');
@@ -99,7 +126,9 @@ export const datasetAPI = {
     },
 
     async downloadDataset(datasetId, format = 'csv') {
-        const response = await fetch(`${API_V1}/datasets/${datasetId}/download?format=${format}`);
+        const response = await fetch(`${API_V1}/datasets/${datasetId}/download?format=${format}`, {
+            headers: getHeaders()
+        });
         if (!response.ok) throw new Error('Failed to download dataset');
         return response.blob();
     }
@@ -111,7 +140,7 @@ export const statisticsAPI = {
     async analyze(datasetId, params = {}) {
         const response = await fetch(`${API_V1}/statistics-math/analyze`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getHeaders(),
             body: JSON.stringify({ dataset_id: datasetId, ...params })
         });
         if (!response.ok) throw new Error('Failed to run statistical analysis');
@@ -125,7 +154,7 @@ export const queryAPI = {
     async submitQuery(sessionId, query, datasetId = null) {
         const response = await fetch(`${API_V1}/query`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getHeaders(),
             body: JSON.stringify({
                 session_id: sessionId,
                 query,
@@ -139,7 +168,7 @@ export const queryAPI = {
     async enhancedQuery(sessionId, query, datasetId, autoEda = true, autoMl = false) {
         const response = await fetch(`${API_V1}/query/enhanced`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getHeaders(),
             body: JSON.stringify({
                 session_id: sessionId,
                 query,
@@ -155,7 +184,7 @@ export const queryAPI = {
     async langchainQuery(sessionId, query, datasetId = null) {
         const response = await fetch(`${API_V1}/query/langchain`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getHeaders(),
             body: JSON.stringify({
                 session_id: sessionId,
                 query,
@@ -173,7 +202,7 @@ export const edaAPI = {
     async analyzeDataset(datasetId, sessionId) {
         const response = await fetch(`${API_V1}/analysis/auto`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getHeaders(),
             body: JSON.stringify({
                 session_id: sessionId,
                 dataset_id: datasetId,
@@ -187,7 +216,7 @@ export const edaAPI = {
     async runStatisticalTests(datasetId, column1, column2 = null) {
         const response = await fetch(`${API_V1}/eda/statistical-tests`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getHeaders(),
             body: JSON.stringify({
                 dataset_id: datasetId,
                 column1,
@@ -205,7 +234,7 @@ export const mlAPI = {
     async trainModel(datasetId, sessionId, targetColumn, modelType = 'auto') {
         const response = await fetch(`${API_V1}/analysis/auto`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getHeaders(),
             body: JSON.stringify({
                 session_id: sessionId,
                 dataset_id: datasetId,
@@ -221,7 +250,7 @@ export const mlAPI = {
     async getFeatureImportance(modelId) {
         const response = await fetch(`${API_V1}/explain/feature-importance?model_id=${encodeURIComponent(modelId)}`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
+            headers: getHeaders()
         });
         if (!response.ok) throw new Error('Failed to fetch feature importance');
         return response.json();
@@ -248,7 +277,7 @@ export const chatAPI = {
     async sendMessage(message, datasetId = null, sessionId = null) {
         const response = await fetch(`${API_V1}/chat`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getHeaders(),
             body: JSON.stringify({
                 message,
                 dataset_id: datasetId,
@@ -260,7 +289,9 @@ export const chatAPI = {
     },
 
     async getChatHistory(sessionId) {
-        const response = await fetch(`${API_V1}/chat/history/${sessionId}`);
+        const response = await fetch(`${API_V1}/chat/history/${sessionId}`, {
+            headers: getHeaders()
+        });
         if (!response.ok) throw new Error('Failed to fetch chat history');
         return response.json();
     }
@@ -272,7 +303,7 @@ export const reportAPI = {
     async generateReport(datasetId, type = 'pdf', sessionId = null) {
         const response = await fetch(`${API_V1}/report/generate`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getHeaders(),
             body: JSON.stringify({
                 dataset_id: datasetId,
                 type,
@@ -299,7 +330,9 @@ export const reportAPI = {
     },
 
     async getReportHistory(sessionId) {
-        const response = await fetch(`${API_V1}/reports/history/${sessionId}`);
+        const response = await fetch(`${API_V1}/reports/history/${sessionId}`, {
+            headers: getHeaders()
+        });
         if (!response.ok) throw new Error('Failed to fetch report history');
         return response.json();
     }
@@ -310,13 +343,17 @@ export const reportAPI = {
 export const toolsAPI = {
     async listTools(scope = null) {
         const url = scope ? `${API_BASE_URL}/api/v1/tools?scope=${scope}` : `${API_BASE_URL}/api/v1/tools`;
-        const response = await fetch(url);
+        const response = await fetch(url, {
+            headers: getHeaders()
+        });
         if (!response.ok) throw new Error('Failed to fetch tools');
         return response.json();
     },
 
     async getTool(toolId) {
-        const response = await fetch(`${API_BASE_URL}/api/v1/tools/${toolId}`);
+        const response = await fetch(`${API_BASE_URL}/api/v1/tools/${toolId}`, {
+            headers: getHeaders()
+        });
         if (!response.ok) throw new Error('Failed to fetch tool');
         return response.json();
     },
@@ -324,7 +361,7 @@ export const toolsAPI = {
     async validateTool(toolId, inputs) {
         const response = await fetch(`${API_BASE_URL}/api/v1/tools/${toolId}/validate`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getHeaders(),
             body: JSON.stringify({ inputs })
         });
         if (!response.ok) throw new Error('Failed to validate tool');
@@ -334,7 +371,7 @@ export const toolsAPI = {
     async callTool(toolId, inputs) {
         const response = await fetch(`${API_BASE_URL}/api/v1/tools/${toolId}/call`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getHeaders(),
             body: JSON.stringify({ inputs })
         });
         if (!response.ok) throw new Error('Failed to call tool');
@@ -346,13 +383,17 @@ export const toolsAPI = {
 
 export const systemAPI = {
     async healthCheck() {
-        const response = await fetch(`${API_BASE_URL}/health`);
+        const response = await fetch(`${API_BASE_URL}/health`, {
+            headers: getHeaders()
+        });
         if (!response.ok) throw new Error('Backend is unavailable');
         return response.json();
     },
 
     async getStatus() {
-        const response = await fetch(`${API_BASE_URL}/`);
+        const response = await fetch(`${API_BASE_URL}/`, {
+            headers: getHeaders()
+        });
         if (!response.ok) throw new Error('Failed to fetch status');
         return response.json();
     }

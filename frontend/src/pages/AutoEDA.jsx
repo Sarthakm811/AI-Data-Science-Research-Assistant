@@ -65,12 +65,12 @@ function createBusinessAnswer(question, results) {
         if (!topMissing.length || topMissing[ 0 ].missing === 0) {
             return 'No major missing-value risk found. Missing data is negligible across columns.'
         }
-        return `Most missing data appears in ${topMissing.map((m) => `${m.name} (${m.percentage.toFixed(1)}%)`).join(', ')}.`
+        return `Most missing data appears in ${topMissing.map((m) => `${m.name} (${(m.percentage || 0).toFixed(1)}%)`).join(', ')}.`
     }
 
     if (q.includes('correlation') || q.includes('related') || q.includes('impact')) {
         if (!topCorr) return 'Not enough numeric columns to evaluate variable relationships.'
-        return `Strongest relationship: ${topCorr.feature1} vs ${topCorr.feature2} with ${topCorr.correlation.toFixed(3)} correlation (${topCorr.direction.toLowerCase()}).`
+        return `Strongest relationship: ${topCorr.feature1} vs ${topCorr.feature2} with ${(topCorr.correlation || 0).toFixed(3)} correlation (${(topCorr.direction || '').toLowerCase()}).`
     }
 
     if (q.includes('outlier') || q.includes('anomal')) {
@@ -113,12 +113,12 @@ function evaluateHypothesis(statement, feature1, feature2, results) {
         if (abs >= 0.5) {
             return {
                 status: 'supported',
-                message: `Hypothesis has support: ${feature1} and ${feature2} show ${pair.correlation.toFixed(3)} correlation (${pair.strength.toLowerCase()}).`
+                message: `Hypothesis has support: ${feature1} and ${feature2} show ${(pair.correlation || 0).toFixed(3)} correlation (${(pair.strength || 'unknown').toLowerCase()}).`
             }
         }
         return {
             status: 'weak',
-            message: `Evidence is weak: correlation between ${feature1} and ${feature2} is ${pair.correlation.toFixed(3)}.`
+            message: `Evidence is weak: correlation between ${feature1} and ${feature2} is ${(pair.correlation || 0).toFixed(3)}.`
         }
     }
 
@@ -243,11 +243,18 @@ function AutoEDA({ dataset }) {
             console.error('Backend EDA error:', error);
             setResults({
                 summary: { rows: dataset.rowCount, columns: dataset.colCount, numericCols: 0, categoricalCols: 0, missingTotal: 0, duplicateRows: 0, outlierTotal: 0 },
-                missingData: [], statistics: [], correlations: [], categoricalAnalysis: [], qualityScore: 0, insights: [ {
-                    type: 'warning', icon: AlertCircle, title: 'Analysis Error', desc: 'An error occurred during backend EDA. Some data may be incomplete.',
-                    action: 'Check your data format and try again'
-                } ], qualityRadar: [],
-                typeCount: [], numericColumns: [], dateColumns: [], correlationHeatmap: { labels: [], values: [] }, missingHeatmap: { labels: [], rowLabels: [], values: [] },
+                missingData: [], statistics: [], correlations: [], categoricalAnalysis: [], qualityScore: 0, 
+                insights: [ {
+                    type: 'warning', title: 'Analysis Error', desc: 'An error occurred during backend EDA. Most sections will be empty.',
+                    action: 'Check your data and try again'
+                } ], 
+                qualityRadar: [
+                    { subject: 'Completeness', A: 0 }, { subject: 'Consistency', A: 0 }, 
+                    { subject: 'Validity', A: 0 }, { subject: 'Uniqueness', A: 0 }
+                ],
+                typeCount: [], numericColumns: [], dateColumns: [], 
+                correlationHeatmap: { labels: [], values: [] }, 
+                missingHeatmap: { labels: [], rowLabels: [], values: [] },
                 trendInsights: [], segmentationInsights: [], comparativeInsights: [], behavioralInsights: []
             });
         }
@@ -1002,10 +1009,10 @@ function AutoEDA({ dataset }) {
                             {/* Quality Metrics Detail */}
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                                 {[
-                                    { label: 'Completeness', value: (100 - (results.summary.missingTotal / (results.summary.rows * results.summary.columns) * 100)).toFixed(1), desc: 'Data without missing values', color: 'green' },
-                                    { label: 'Uniqueness', value: ((results.summary.rows - results.summary.duplicateRows) / results.summary.rows * 100).toFixed(1), desc: 'Unique records', color: 'blue' },
-                                    { label: 'Consistency', value: (100 - (results.summary.outlierTotal / results.summary.rows * 100)).toFixed(1), desc: 'Data within expected ranges', color: 'purple' },
-                                    { label: 'Validity', value: Math.min(100, results.qualityScore + 5).toFixed(1), desc: 'Valid data format', color: 'pink' }
+                                    { label: 'Completeness', value: (100 - ((results.summary.missingTotal || 0) / ((results.summary.rows || 1) * (results.summary.columns || 1)) * 100)).toFixed(1), desc: 'Data without missing values', color: 'green' },
+                                    { label: 'Uniqueness', value: (((results.summary.rows || 1) - (results.summary.duplicateRows || 0)) / (results.summary.rows || 1) * 100).toFixed(1), desc: 'Unique records', color: 'blue' },
+                                    { label: 'Consistency', value: (100 - ((results.summary.outlierTotal || 0) / (results.summary.rows || 1) * 100)).toFixed(1), desc: 'Data within expected ranges', color: 'purple' },
+                                    { label: 'Validity', value: Math.min(100, (results.qualityScore || 0) + 5).toFixed(1), desc: 'Valid data format', color: 'pink' }
                                 ].map((metric, i) => (
                                     <div key={i} className="card">
                                         <div className="flex items-center justify-between mb-2">
