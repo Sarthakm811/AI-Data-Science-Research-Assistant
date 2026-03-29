@@ -7,13 +7,35 @@ from app.utils.config import settings
 class KaggleTool:
     def __init__(self):
         self.api = KaggleApi()
-        if settings.kaggle_username and settings.kaggle_key:
-            os.environ["KAGGLE_USERNAME"] = settings.kaggle_username
-            os.environ["KAGGLE_KEY"] = settings.kaggle_key
-        self.api.authenticate()
+        self._authenticated = False
+
+    def _ensure_authenticated(self):
+        """Lazy authentication for Kaggle API"""
+        if self._authenticated:
+            return
+
+        try:
+            if settings.kaggle_username and settings.kaggle_key:
+                os.environ["KAGGLE_USERNAME"] = settings.kaggle_username
+                os.environ["KAGGLE_KEY"] = settings.kaggle_key
+            
+            # If no credentials found in env/settings, this will look for kaggle.json
+            self.api.authenticate()
+            import logging
+            logging.getLogger(__name__).info("Kaggle API successfully authenticated.")
+            self._authenticated = True
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"Kaggle authentication failed or missing: {e}. Kaggle features will be unavailable.")
+            from fastapi import HTTPException
+            raise HTTPException(
+                status_code=503, 
+                detail="Kaggle API is not authenticated. Please provide credentials in environment variables."
+            )
 
     async def search_datasets(self, query: str, page: int = 1) -> List[Dict[str, Any]]:
         """Search Kaggle datasets"""
+        self._ensure_authenticated()
         datasets = self.api.dataset_list(search=query, page=page)
         return [
             {
@@ -27,6 +49,7 @@ class KaggleTool:
 
     async def get_dataset_info(self, dataset_id: str) -> Dict[str, Any]:
         """Get dataset metadata"""
+        self._ensure_authenticated()
         try:
             metadata = self.api.dataset_metadata(dataset_id)
             return {
@@ -45,6 +68,7 @@ class KaggleTool:
 
     async def download_dataset(self, dataset_id: str, path: str = "/data"):
         """Download dataset to local path"""
+        self._ensure_authenticated()
         os.makedirs(path, exist_ok=True)
         self.api.dataset_download_files(dataset_id, path=path, unzip=True)
         return path
