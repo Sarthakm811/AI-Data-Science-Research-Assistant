@@ -76,6 +76,46 @@ export const datasetAPI = {
         const response = await fetch(`${API_V1}/datasets/${datasetId}/preview?rows=${rows}`);
         if (!response.ok) throw new Error('Failed to fetch dataset preview');
         return response.json();
+    },
+    
+    async cleanDataset(datasetId, cleaningRequest) {
+        const response = await fetch(`${API_V1}/datasets/${datasetId}/clean`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(cleaningRequest)
+        });
+        if (!response.ok) throw new Error('Failed to clean dataset');
+        return response.json();
+    },
+
+    async featureEngineerDataset(datasetId, request) {
+        const response = await fetch(`${API_V1}/datasets/${datasetId}/feature-engineer`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(request)
+        });
+        if (!response.ok) throw new Error('Failed to save engineered dataset');
+        return response.json();
+    },
+
+    async downloadDataset(datasetId, format = 'csv') {
+        const response = await fetch(`${API_V1}/datasets/${datasetId}/download?format=${format}`);
+        if (!response.ok) throw new Error('Failed to download dataset');
+        return response.blob();
+    }
+};
+
+// ==================== Statistics & Math ====================
+
+export const statisticsAPI = {
+    async analyze(datasetId, params = {}) {
+        const response = await fetch(`${API_V1}/statistics-math/analyze`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ dataset_id: datasetId, ...params })
+        });
+        if (!response.ok) throw new Error('Failed to run statistical analysis');
+        return response.json();
     }
 };
 
@@ -142,6 +182,20 @@ export const edaAPI = {
         });
         if (!response.ok) throw new Error('Failed to analyze dataset');
         return response.json();
+    },
+
+    async runStatisticalTests(datasetId, column1, column2 = null) {
+        const response = await fetch(`${API_V1}/eda/statistical-tests`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                dataset_id: datasetId,
+                column1,
+                column2
+            })
+        });
+        if (!response.ok) throw new Error('Failed to run statistical tests');
+        return response.json();
     }
 };
 
@@ -166,7 +220,8 @@ export const mlAPI = {
 
     async getFeatureImportance(modelId) {
         const response = await fetch(`${API_V1}/explain/feature-importance?model_id=${encodeURIComponent(modelId)}`, {
-            method: 'POST'
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
         });
         if (!response.ok) throw new Error('Failed to fetch feature importance');
         return response.json();

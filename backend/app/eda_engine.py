@@ -8,15 +8,29 @@ class EDAEngine:
     """Comprehensive Exploratory Data Analysis engine."""
 
     def full_analysis(self, df: pd.DataFrame) -> Dict[str, Any]:
-        """Run a complete EDA summary and return JSON-serializable results."""
+        """Run a complete EDA summary and return JSON-serializable results matching AutoEDA.jsx expectations."""
+        stats = self._statistics(df)
+        correlations = self._correlations(df)
+        missing_data = self._missing_data(df)
+        categorical = self._categorical_analysis(df)
+        
+        quality_score = self._calculate_quality_score(df, missing_data, stats)
+        
         return {
             "summary": self._summary(df),
-            "data_types": self._data_types(df),
-            "missing_data": self._missing_data(df),
-            "statistics": self._statistics(df),
-            "correlations": self._correlations(df),
-            "outliers": self._outliers(df),
+            "statistics": stats,
+            "correlations": correlations,
+            "missingData": missing_data,
+            "categoricalAnalysis": categorical,
+            "qualityScore": quality_score,
+            "insights": self._generate_insights(df, missing_data, stats, correlations),
             "recommendations": self._recommendations(df),
+            "numericColumns": [s["name"] for s in stats],
+            "dateColumns": self._detect_date_columns(df),
+            "typeCount": self._get_type_counts(df),
+            "qualityRadar": self._get_quality_radar(quality_score, missing_data, stats),
+            "missingHeatmap": self._get_missing_heatmap(df),
+            "correlationHeatmap": self._get_correlation_heatmap(df)
         }
 
     def statistical_tests(
@@ -87,13 +101,29 @@ class EDAEngine:
     def _summary(self, df: pd.DataFrame) -> Dict[str, Any]:
         total_cells = int(df.shape[0] * df.shape[1]) if not df.empty else 0
         missing_cells = int(df.isna().sum().sum())
+        num_cols = len(df.select_dtypes(include=[np.number]).columns)
+        cat_cols = len(df.select_dtypes(exclude=[np.number]).columns)
+        
+        # Calculate outliers across all columns
+        outlier_total = 0
+        num_df = df.select_dtypes(include=[np.number])
+        for col in num_df.columns:
+            s = num_df[col].dropna()
+            if s.empty: continue
+            q1, q3 = s.quantile(0.25), s.quantile(0.75)
+            iqr = q3 - q1
+            outlier_total += int(((s < (q1 - 1.5 * iqr)) | (s > (q3 + 1.5 * iqr))).sum())
+
         return {
             "rows": int(df.shape[0]),
             "columns": int(df.shape[1]),
+            "numericCols": num_cols,
+            "categoricalCols": cat_cols,
             "memory_usage_mb": round(float(df.memory_usage(deep=True).sum() / (1024**2)), 2),
-            "duplicates": int(df.duplicated().sum()),
-            "missing_cells": missing_cells,
+            "duplicateRows": int(df.duplicated().sum()),
+            "missingTotal": missing_cells,
             "missing_percentage": round((missing_cells / total_cells) * 100, 2) if total_cells else 0.0,
+            "outlierTotal": outlier_total
         }
 
     def _data_types(self, df: pd.DataFrame) -> List[Dict[str, Any]]:
@@ -128,118 +158,182 @@ class EDAEngine:
             )
         return results
 
-    def _missing_data(self, df: pd.DataFrame) -> Dict[str, Any]:
+    def _missing_data(self, df: pd.DataFrame) -> List[Dict[str, Any]]:
         missing = df.isna().sum()
-        cols = missing[missing > 0]
         n_rows = max(len(df), 1)
-        return {
-            "total_missing": int(missing.sum()),
-            "columns_with_missing": {
-                col: {
-                    "count": int(cols[col]),
-                    "percentage": round((int(cols[col]) / n_rows) * 100, 2),
-                }
-                for col in cols.index
-            },
-        }
+        results = []
+        for col in df.columns:
+            count = int(missing[col])
+            results.append({
+                "name": col,
+                "missing": count,
+                "percentage": round((count / n_rows) * 100, 2)
+            })
+        return results
 
-    def _statistics(self, df: pd.DataFrame) -> Dict[str, Any]:
+    def _statistics(self, df: pd.DataFrame) -> List[Dict[str, Any]]:
         import numpy as np
         num = df.select_dtypes(include=[np.number])
         if num.empty:
-            return {}
+            return []
 
-        stats = num.describe().to_dict()
-        for col in num.columns:
-            stats[col]["skewness"] = float(num[col].skew())
-            stats[col]["kurtosis"] = float(num[col].kurtosis())
-        return stats
-
-    def _correlations(self, df: pd.DataFrame) -> Dict[str, Any]:
-        import numpy as np
-        num = df.select_dtypes(include=[np.number])
-        if num.shape[1] < 2:
-            return {"correlation_matrix": {}, "high_correlations": []}
-
-        corr = num.corr(numeric_only=True)
-        high: List[Dict[str, Any]] = []
-        cols = list(corr.columns)
-        for i in range(len(cols)):
-            for j in range(i + 1, len(cols)):
-                value = corr.iloc[i, j]
-                if abs(value) >= 0.7:
-                    high.append(
-                        {
-                            "feature1": cols[i],
-                            "feature2": cols[j],
-                            "correlation": float(value),
-                        }
-                    )
-
-        return {"correlation_matrix": corr.to_dict(), "high_correlations": high}
-
-    def _outliers(self, df: pd.DataFrame) -> Dict[str, Any]:
-        import numpy as np
-        out: Dict[str, Any] = {}
-        num = df.select_dtypes(include=[np.number])
-        n_rows = max(len(df), 1)
-
+        results = []
+        n_rows = len(df)
+        
         for col in num.columns:
             s = num[col].dropna()
             if s.empty:
                 continue
-            q1 = s.quantile(0.25)
-            q3 = s.quantile(0.75)
+                
+            desc = s.describe().to_dict()
+            q1 = desc.get("25%", 0)
+            q3 = desc.get("75%", 0)
             iqr = q3 - q1
-            if iqr == 0:
-                continue
             lower = q1 - 1.5 * iqr
             upper = q3 + 1.5 * iqr
-            count = int(((s < lower) | (s > upper)).sum())
-            if count > 0:
-                out[col] = {
-                    "count": count,
-                    "percentage": round((count / n_rows) * 100, 2),
-                    "lower_bound": float(lower),
-                    "upper_bound": float(upper),
-                }
+            outliers = int(((s < lower) | (s > upper)).sum())
+            
+            # Simple histogram for distribution
+            counts, bins = np.histogram(s, bins=10)
+            distribution = [{"bin": f"{bins[i]:.2f}-{bins[i+1]:.2f}", "count": int(counts[i])} for i in range(len(counts))]
+            
+            skew = float(s.skew())
+            results.append({
+                "name": col,
+                "mean": float(desc.get("mean", 0)),
+                "median": float(desc.get("50%", 0)),
+                "std": float(desc.get("std", 0)),
+                "min": float(desc.get("min", 0)),
+                "max": float(desc.get("max", 0)),
+                "q1": float(desc.get("25%", 0)),
+                "q3": float(desc.get("75%", 0)),
+                "outlierCount": outliers,
+                "outlierPercentage": round((outliers / n_rows) * 100, 2) if n_rows else 0,
+                "skewness": round(skew, 3),
+                "trend": "symmetric" if abs(skew) < 0.5 else ("right-skewed" if skew > 0 else "left-skewed"),
+                "cv": round((float(desc.get("std", 0)) / float(desc.get("mean", 1)) * 100), 2) if desc.get("mean") else 0,
+                "distribution": distribution
+            })
+        return results
 
-        return out
+    def _correlations(self, df: pd.DataFrame) -> List[Dict[str, Any]]:
+        import numpy as np
+        num = df.select_dtypes(include=[np.number])
+        if num.shape[1] < 2:
+            return []
 
-    def _normality_test(self, series: pd.Series) -> Dict[str, Any]:
-        from scipy.stats import shapiro
-        if not pd.api.types.is_numeric_dtype(series):
-            return {"test": "shapiro", "error": "Normality tests require numeric data"}
+        corr = num.corr(numeric_only=True)
+        results: List[Dict[str, Any]] = []
+        cols = list(corr.columns)
+        for i in range(len(cols)):
+            for j in range(i + 1, len(cols)):
+                value = corr.iloc[i, j]
+                if not np.isnan(value):
+                    results.append({
+                        "feature1": cols[i],
+                        "feature2": cols[j],
+                        "correlation": float(value),
+                        "direction": "Positive" if value > 0 else "Negative"
+                    })
+        return results
 
-        data = series.to_numpy(dtype=float)
-        if len(data) < 3:
-            return {"test": "shapiro", "error": "Insufficient samples"}
+    def _categorical_analysis(self, df: pd.DataFrame) -> List[Dict[str, Any]]:
+        cat = df.select_dtypes(include=["object", "category"])
+        results = []
+        for col in cat.columns:
+            counts = df[col].value_counts()
+            top_ten = counts.head(10)
+            n_rows = len(df)
+            
+            # Entropy calculation
+            probs = counts / n_rows
+            entropy = float(-(probs * np.log2(probs + 1e-12)).sum())
+            dominance = float(counts.iloc[0] / n_rows * 100) if not counts.empty else 0
+            
+            results.append({
+                "name": col,
+                "uniqueValues": int(df[col].nunique()),
+                "topValues": [{"name": str(k), "value": int(v)} for k, v in top_ten.items()],
+                "entropy": round(entropy, 3),
+                "dominance": round(dominance, 2)
+            })
+        return results
 
-        sample = data[:5000] if len(data) > 5000 else data
-        stat, p_value = shapiro(sample)
+    def _get_missing_heatmap(self, df: pd.DataFrame) -> Dict[str, Any]:
+        sample = df.head(50) # Limit for UI performance
         return {
-            "test": "shapiro",
-            "statistic": float(stat),
-            "p_value": float(p_value),
-            "is_normal": bool(p_value > 0.05),
+            "labels": list(df.columns),
+            "rowLabels": list(sample.index.astype(str)),
+            "values": sample.isna().astype(int).values.tolist()
         }
 
-    def _recommendations(self, df: pd.DataFrame) -> List[str]:
-        import numpy as np
-        recommendations: List[str] = []
-        missing = df.isna().sum().sum()
-        if missing > 0:
-            recommendations.append("Handle missing values before model training.")
+    def _get_correlation_heatmap(self, df: pd.DataFrame) -> Dict[str, Any]:
+        num = df.select_dtypes(include=[np.number])
+        if num.shape[1] < 2:
+            return {"labels": [], "values": []}
+        
+        corr = num.corr().fillna(0)
+        return {
+            "labels": list(corr.columns),
+            "values": corr.values.tolist()
+        }
 
-        duplicates = int(df.duplicated().sum())
-        if duplicates > 0:
-            recommendations.append("Remove or review duplicate rows.")
+    def _calculate_quality_score(self, df: pd.DataFrame, missing: List[Dict[str, Any]], stats: List[Dict[str, Any]]) -> int:
+        score = 100
+        # Penalty for missing data
+        total_missing_pct = sum(m["percentage"] for m in missing) / max(len(df.columns), 1)
+        score -= min(40, total_missing_pct * 2)
+        
+        # Penalty for outliers
+        total_outliers = sum(s["outlierCount"] for s in stats)
+        outlier_pct = (total_outliers / (len(df) * len(df.columns))) * 100 if not df.empty and len(df.columns) else 0
+        score -= min(20, outlier_pct * 5)
+        
+        return int(max(0, score))
 
-        num_cols = df.select_dtypes(include=[np.number]).shape[1]
-        if num_cols >= 2:
-            recommendations.append("Review highly correlated numeric features to reduce multicollinearity.")
+    def _generate_insights(self, df: pd.DataFrame, missing: List[Dict[str, Any]], stats: List[Dict[str, Any]], correlations: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        insights = []
+        
+        # Missing data insights
+        top_missing = sorted([m for m in missing if m["percentage"] > 5], key=lambda x: x["percentage"], reverse=True)
+        if top_missing:
+            insights.append({
+                "type": "warning",
+                "title": "High Missing Data",
+                "desc": f"{top_missing[0]['name']} has {top_missing[0]['percentage']}% missing values."
+            })
+            
+        # Outlier insights
+        top_outliers = sorted([s for s in stats if s["outlierPercentage"] > 5], key=lambda x: x["outlierPercentage"], reverse=True)
+        if top_outliers:
+            insights.append({
+                "type": "info",
+                "title": "Outliers Detected",
+                "desc": f"{top_outliers[0]['name']} contains significant outliers ({top_outliers[0]['outlierPercentage']}%)."
+            })
+            
+        # Correlation insights
+        strong_corr = [c for c in correlations if abs(c["correlation"]) > 0.8]
+        if strong_corr:
+            insights.append({
+                "type": "success",
+                "title": "Strong Patterns",
+                "desc": f"Strong correlation found between {strong_corr[0]['feature1']} and {strong_corr[0]['feature2']}."
+            })
+            
+        return insights
 
-        if not recommendations:
-            recommendations.append("Dataset looks clean enough for baseline modeling.")
+    def _detect_date_columns(self, df: pd.DataFrame) -> List[str]:
+        return [col for col in df.columns if pd.api.types.is_datetime64_any_dtype(df[col])]
 
-        return recommendations
+    def _get_type_counts(self, df: pd.DataFrame) -> List[Dict[str, Any]]:
+        counts = df.dtypes.value_counts().to_dict()
+        return [{"name": str(k), "value": int(v)} for k, v in counts.items()]
+
+    def _get_quality_radar(self, score: int, missing: List[Dict[str, Any]], stats: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        return [
+            {"subject": "Completeness", "A": 100 - sum(m["percentage"] for m in missing)/len(missing) if missing else 100},
+            {"subject": "Consistency", "A": score},
+            {"subject": "Validity", "A": 100 - sum(s["outlierPercentage"] for s in stats)/len(stats) if stats else 100},
+            {"subject": "Uniqueness", "A": 100}, # Placeholder
+        ]

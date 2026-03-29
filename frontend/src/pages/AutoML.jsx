@@ -2,8 +2,7 @@ import React, { useMemo, useState } from 'react'
 import { Play, AlertCircle } from 'lucide-react'
 import MLResults from '../components/MLResults'
 import { useAnalysis } from '../context/AnalysisContext'
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || ''
+import { datasetAPI, mlAPI } from '../services/api'
 
 const MODEL_OPTIONS = [
     { label: 'Linear Regression', value: 'Linear Regression', mode: 'regression' },
@@ -206,17 +205,8 @@ function AutoML({ dataset, setDataset }) {
                 ? (dataset?.name || 'dataset.csv')
                 : `${dataset?.name || 'dataset'}.csv`
             const file = new File([ csvText ], uploadName, { type: 'text/csv' })
-            formData.append('file', file)
 
-            const uploadResp = await fetch(`${API_BASE_URL}/api/dataset/upload`, {
-                method: 'POST',
-                body: formData
-            })
-            const uploadPayload = await uploadResp.json()
-            if (!uploadResp.ok) {
-                throw new Error(uploadPayload?.detail || 'Failed to sync dataset to backend')
-            }
-
+            const uploadPayload = await datasetAPI.uploadDataset(file)
             const backendId = uploadPayload?.id
             if (!backendId) {
                 throw new Error('Backend dataset id missing after upload')
@@ -396,8 +386,9 @@ function AutoML({ dataset, setDataset }) {
             const backendDatasetId = await ensureDatasetOnBackend()
 
             let response
+            const VITE_API_URL = import.meta.env.VITE_API_URL || ''
             if (config.workflow === 'clustering') {
-                response = await fetch(`${API_BASE_URL}/api/ml/cluster`, {
+                response = await fetch(`${VITE_API_URL}/api/ml/cluster`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -410,7 +401,7 @@ function AutoML({ dataset, setDataset }) {
                     })
                 })
             } else if (config.workflow === 'compare') {
-                response = await fetch(`${API_BASE_URL}/api/ml/train`, {
+                response = await fetch(`${VITE_API_URL}/api/ml/train`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -425,7 +416,7 @@ function AutoML({ dataset, setDataset }) {
                     })
                 })
             } else {
-                response = await fetch(`${API_BASE_URL}/api/ml/train-selected`, {
+                response = await fetch(`${VITE_API_URL}/api/ml/train-selected`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({

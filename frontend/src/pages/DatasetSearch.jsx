@@ -1,15 +1,6 @@
 import React, { useState, useCallback } from 'react'
 import { Search, Download, Upload, Loader, AlertCircle, CheckCircle, Key, Settings, Eye, EyeOff } from 'lucide-react'
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || ''
-
-function ensureApiConfigured() {
-    const base = String(API_BASE_URL || '').trim()
-    if (!base || base.includes('your-backend-url.onrender.com')) {
-        throw new Error('Frontend API is not configured. Set VITE_API_URL to your backend URL in Vercel project settings.')
-    }
-    return base
-}
+import { datasetAPI, kaggleAPI } from '../services/api'
 
 function DatasetSearch({ setDataset }) {
     const [ searchQuery, setSearchQuery ] = useState('')
@@ -59,20 +50,13 @@ function DatasetSearch({ setDataset }) {
         setResults([])
 
         try {
-            const apiBase = ensureApiConfigured()
-            const response = await fetch(`${apiBase}/api/kaggle/search`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    query: searchQuery,
-                    page,
-                    kaggle_username: kaggleUsername,
-                    kaggle_key: kaggleKey
-                })
+            const data = await kaggleAPI.search({
+                query: searchQuery,
+                page,
+                kaggle_username: kaggleUsername,
+                kaggle_key: kaggleKey
             })
 
-            if (!response.ok) throw new Error('Search failed')
-            const data = await response.json()
             setResults(data.datasets || data || [])
         } catch (err) {
             setError(err.message || 'Failed to search datasets')
@@ -93,19 +77,7 @@ function DatasetSearch({ setDataset }) {
         setError(null)
 
         try {
-            const apiBase = ensureApiConfigured()
-            const response = await fetch(`${apiBase}/api/kaggle/download`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    dataset_ref: dataset.ref || dataset.id,
-                    kaggle_username: kaggleUsername,
-                    kaggle_key: kaggleKey
-                })
-            })
-
-            if (!response.ok) throw new Error('Download failed')
-            const data = await response.json()
+            const data = await kaggleAPI.download(dataset.ref || dataset.id, kaggleUsername, kaggleKey)
 
             if (data.headers && data.rows) {
                 setDataset(data)
@@ -146,26 +118,7 @@ function DatasetSearch({ setDataset }) {
         setUploadError(null)
 
         try {
-            const apiBase = ensureApiConfigured()
-            const formData = new FormData()
-            formData.append('file', selectedFile)
-
-            const response = await fetch(`${apiBase}/api/dataset/upload`, {
-                method: 'POST',
-                body: formData
-            })
-
-            if (!response.ok) {
-                let message = 'Upload failed'
-                try {
-                    const payload = await response.json()
-                    message = payload?.detail || payload?.error || message
-                } catch {
-                    // Ignore parse errors and keep fallback message.
-                }
-                throw new Error(message)
-            }
-            const data = await response.json()
+            const data = await datasetAPI.uploadDataset(selectedFile)
 
             setDataset(data)
             setSelectedFile(null)

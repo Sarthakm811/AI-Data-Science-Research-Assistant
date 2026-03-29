@@ -14,8 +14,7 @@ import {
     Cell
 } from 'recharts'
 import { useAnalysis } from '../context/AnalysisContext'
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || ''
+import { statisticsAPI } from '../services/api'
 
 function inferColumns(dataset) {
     const headers = dataset?.headers || []
@@ -136,8 +135,7 @@ function StatisticsMath({ dataset }) {
                 return parts.length >= 3 ? parts.slice(0, 3) : fallback
             }
 
-            const payload = {
-                dataset_id: dataset.id,
+            const data = await statisticsAPI.analyze(dataset.id, {
                 numeric_column: config.numericColumn || null,
                 group_column: config.groupColumn || null,
                 categorical_column: config.categoricalColumn || null,
@@ -157,17 +155,7 @@ function StatisticsMath({ dataset }) {
                 forecast_steps: Number(config.forecastSteps),
                 matrix_columns: config.matrixColumns.length ? config.matrixColumns : null,
                 vector_columns: config.vectorColumns.length ? config.vectorColumns : null,
-            }
-
-            const response = await fetch(`${API_BASE_URL}/api/statistics-math/analyze`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
             })
-            const data = await response.json()
-            if (!response.ok) {
-                throw new Error(data?.detail || 'Failed to run statistics and mathematics analysis')
-            }
 
             setResults(data)
             setStatsMathResults(data)

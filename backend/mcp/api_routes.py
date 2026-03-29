@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from typing import Optional, Dict, Any
 from .tool_registry import tool_registry
 
-router = APIRouter(prefix="/api/v1/tools", tags=["tools"])
+router = APIRouter(prefix="/v1/tools", tags=["tools"])
 
 
 class ToolCallRequest(BaseModel):

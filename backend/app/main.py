@@ -40,9 +40,9 @@ app.add_middleware(
 )
 
 # Mount runtime compatibility/data/ML routes from dedicated module.
-app.include_router(runtime_router)
-app.include_router(enhanced_router)
-app.include_router(mcp_router)
+app.include_router(runtime_router, prefix="/api")
+app.include_router(enhanced_router, prefix="/api")
+app.include_router(mcp_router, prefix="/api")
 
 
 @app.get("/")

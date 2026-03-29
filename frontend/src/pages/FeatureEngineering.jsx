@@ -1,8 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import { Cpu, Sparkles, Layers, SlidersHorizontal, Download, CheckCircle2, AlertCircle } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ScatterChart, Scatter, ZAxis } from 'recharts'
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || ''
+import { datasetAPI } from '../services/api'
 
 function isMissing(value) {
     return value === null || value === undefined || String(value).trim() === ''
@@ -616,23 +615,13 @@ function FeatureEngineering({ dataset, setDataset }) {
 
         setSavingVersion(true)
         try {
-            const response = await fetch(`${API_BASE_URL}/api/datasets/${dataset.id}/feature-engineer`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    headers: transformed.headers,
-                    rows: transformed.rows,
-                    name: `${dataset?.name || 'dataset'}_engineered`,
-                    notes: transformed.notes || []
-                })
+            const payload = await datasetAPI.featureEngineerDataset(dataset.id, {
+                headers: transformed.headers,
+                rows: transformed.rows,
+                name: `${dataset?.name || 'dataset'}_engineered`,
+                notes: transformed.notes || []
             })
 
-            if (!response.ok) {
-                const payload = await response.json().catch(() => ({}))
-                throw new Error(payload?.detail || 'Failed to save engineered dataset version')
-            }
-
-            const payload = await response.json()
             if (!payload?.dataset?.id) {
                 throw new Error('Save succeeded but no dataset id was returned')
             }
@@ -654,13 +643,7 @@ function FeatureEngineering({ dataset, setDataset }) {
         }
 
         try {
-            const response = await fetch(`${API_BASE_URL}/api/datasets/${versionId}/download?format=${encodeURIComponent(downloadFormat)}`)
-            if (!response.ok) {
-                const payload = await response.json().catch(() => ({}))
-                throw new Error(payload?.detail || 'Failed to download saved engineered dataset')
-            }
-
-            const blob = await response.blob()
+            const blob = await datasetAPI.downloadDataset(versionId, downloadFormat)
             const url = window.URL.createObjectURL(blob)
             const link = document.createElement('a')
             link.href = url

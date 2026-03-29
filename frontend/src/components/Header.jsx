@@ -1,15 +1,6 @@
 import React, { useState, useRef } from 'react'
 import { Menu, Upload, Database, X } from 'lucide-react'
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || ''
-
-function ensureApiConfigured() {
-    const base = String(API_BASE_URL || '').trim()
-    if (!base || base.includes('your-backend-url.onrender.com')) {
-        throw new Error('Frontend API is not configured. Set VITE_API_URL to your backend URL in Vercel project settings.')
-    }
-    return base
-}
+import { datasetAPI } from '../services/api'
 
 function Header({ dataset, setDataset, toggleSidebar, isMobile }) {
     const [ uploading, setUploading ] = useState(false)
@@ -22,27 +13,7 @@ function Header({ dataset, setDataset, toggleSidebar, isMobile }) {
         setUploading(true)
 
         try {
-            const apiBase = ensureApiConfigured()
-            const formData = new FormData()
-            formData.append('file', file)
-
-            const response = await fetch(`${apiBase}/api/dataset/upload`, {
-                method: 'POST',
-                body: formData
-            })
-
-            if (!response.ok) {
-                let message = 'Upload failed'
-                try {
-                    const payload = await response.json()
-                    message = payload?.detail || payload?.error || message
-                } catch {
-                    // Ignore parse errors and keep generic message.
-                }
-                throw new Error(message)
-            }
-
-            const data = await response.json()
+            const data = await datasetAPI.uploadDataset(file)
             setDataset(data)
         } catch (err) {
             console.error(err)

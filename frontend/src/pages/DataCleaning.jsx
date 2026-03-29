@@ -1,7 +1,6 @@
 import React, { useMemo, useState } from 'react'
 import { Sparkles, Wand2, AlertCircle, CheckCircle2, SlidersHorizontal, Download, ChevronDown, ChevronUp } from 'lucide-react'
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || ''
+import { datasetAPI } from '../services/api'
 const DEFAULT_STOPWORDS = new Set([
     'a', 'an', 'and', 'are', 'as', 'at', 'be', 'by', 'for', 'from', 'has', 'he', 'in', 'is',
     'it', 'its', 'of', 'on', 'that', 'the', 'to', 'was', 'were', 'will', 'with', 'or', 'not'
@@ -292,13 +291,7 @@ function DataCleaning({ dataset, setDataset }) {
         setApiError(null)
 
         try {
-            const response = await fetch(`${API_BASE_URL}/api/datasets/${dataset.id}/download?format=${downloadFormat}`)
-            if (!response.ok) {
-                const payload = await response.json().catch(() => ({}))
-                throw new Error(payload?.detail || 'Failed to download dataset')
-            }
-
-            const blob = await response.blob()
+            const blob = await datasetAPI.downloadDataset(dataset.id, downloadFormat)
             const url = window.URL.createObjectURL(blob)
             const a = document.createElement('a')
             a.href = url
@@ -442,16 +435,7 @@ function DataCleaning({ dataset, setDataset }) {
         // Prefer backend cleaning when dataset has an id so output is versioned and reusable.
         if (dataset.id) {
             try {
-                const response = await fetch(`${API_BASE_URL}/api/datasets/${dataset.id}/clean`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(requestPayload)
-                })
-
-                const payload = await response.json()
-                if (!response.ok) {
-                    throw new Error(payload?.detail || 'Failed to clean dataset')
-                }
+                const payload = await datasetAPI.cleanDataset(dataset.id, requestPayload)
 
                 setDataset(payload.dataset)
                 const summary = payload.clean_summary || {}

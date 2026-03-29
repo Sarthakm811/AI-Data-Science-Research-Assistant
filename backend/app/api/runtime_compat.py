@@ -656,7 +656,7 @@ def _encode_binary_outcome(series: pd.Series) -> Optional[pd.Series]:
     return None
 
 
-@router.post("/api/statistics-math/analyze")
+@router.post("/statistics-math/analyze")
 def statistics_math_analysis(request: StatisticsMathRequest) -> Dict[str, Any]:
     from scipy.stats import beta as beta_distribution, chi2_contingency, f_oneway, norm, t, ttest_ind
     from statsmodels.stats.proportion import proportions_ztest
@@ -994,8 +994,8 @@ def statistics_math_analysis(request: StatisticsMathRequest) -> Dict[str, Any]:
     }
 
 
-@router.post("/api/dataset/upload")
-@router.post("/api/datasets/upload")
+@router.post("/dataset/upload")
+@router.post("/datasets/upload")
 async def upload_dataset(file: UploadFile = File(...)) -> Dict[str, Any]:
     try:
         content = await file.read()
@@ -1020,8 +1020,8 @@ async def upload_dataset(file: UploadFile = File(...)) -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
-@router.get("/api/dataset/{dataset_id}")
-@router.get("/api/datasets/{dataset_id}")
+@router.get("/dataset/{dataset_id}")
+@router.get("/datasets/{dataset_id}")
 def get_dataset(dataset_id: str, rows: int = Query(default=100, ge=1, le=5000)) -> Dict[str, Any]:
     if dataset_id not in DATASETS:
         raise HTTPException(status_code=404, detail="Dataset not found")
@@ -1036,14 +1036,14 @@ def get_dataset(dataset_id: str, rows: int = Query(default=100, ge=1, le=5000)) 
     }
 
 
-@router.get("/api/dataset/list")
-@router.get("/api/datasets")
+@router.get("/dataset/list")
+@router.get("/datasets")
 def list_datasets() -> List[Dict[str, Any]]:
     return [{"id": k, "rows": int(len(v)), "cols": int(len(v.columns))} for k, v in DATASETS.items()]
 
 
-@router.get("/api/dataset/{dataset_id}/download")
-@router.get("/api/datasets/{dataset_id}/download")
+@router.get("/dataset/{dataset_id}/download")
+@router.get("/datasets/{dataset_id}/download")
 def download_dataset(dataset_id: str, format: str = Query(default="csv")):
     if dataset_id not in DATASETS:
         raise HTTPException(status_code=404, detail="Dataset not found")
@@ -1069,8 +1069,8 @@ def download_dataset(dataset_id: str, format: str = Query(default="csv")):
     )
 
 
-@router.post("/api/dataset/{dataset_id}/clean")
-@router.post("/api/datasets/{dataset_id}/clean")
+@router.post("/dataset/{dataset_id}/clean")
+@router.post("/datasets/{dataset_id}/clean")
 def clean_dataset(dataset_id: str, request: DataCleaningRequest) -> Dict[str, Any]:
     if dataset_id not in DATASETS:
         raise HTTPException(status_code=404, detail="Dataset not found")
@@ -1096,8 +1096,8 @@ def clean_dataset(dataset_id: str, request: DataCleaningRequest) -> Dict[str, An
     }
 
 
-@router.post("/api/dataset/{dataset_id}/feature-engineer")
-@router.post("/api/datasets/{dataset_id}/feature-engineer")
+@router.post("/dataset/{dataset_id}/feature-engineer")
+@router.post("/datasets/{dataset_id}/feature-engineer")
 def save_feature_engineered_dataset(dataset_id: str, request: FeatureEngineeringSaveRequest) -> Dict[str, Any]:
     if dataset_id not in DATASETS:
         raise HTTPException(status_code=404, detail="Dataset not found")
@@ -1145,7 +1145,7 @@ def save_feature_engineered_dataset(dataset_id: str, request: FeatureEngineering
     }
 
 
-@router.delete("/api/datasets/{dataset_id}")
+@router.delete("/datasets/{dataset_id}")
 def delete_dataset(dataset_id: str) -> Dict[str, Any]:
     if dataset_id not in DATASETS:
         raise HTTPException(status_code=404, detail="Dataset not found")
@@ -1153,12 +1153,12 @@ def delete_dataset(dataset_id: str) -> Dict[str, Any]:
     return {"success": True}
 
 
-@router.get("/api/datasets/{dataset_id}/preview")
+@router.get("/datasets/{dataset_id}/preview")
 def dataset_preview(dataset_id: str, rows: int = Query(default=10, ge=1, le=500)) -> Dict[str, Any]:
     return get_dataset(dataset_id=dataset_id, rows=rows)
 
 
-@router.post("/api/preprocess")
+@router.post("/preprocess")
 def preprocess_data(request: PreprocessRequest) -> Dict[str, Any]:
     if request.dataset_id not in DATASETS:
         raise HTTPException(status_code=404, detail="Dataset not found")
@@ -1190,7 +1190,7 @@ def preprocess_data(request: PreprocessRequest) -> Dict[str, Any]:
     }
 
 
-@router.get("/api/preprocess/options")
+@router.get("/preprocess/options")
 def get_preprocessing_options() -> Dict[str, List[str]]:
     return {
         "handle_missing": ["auto", "drop", "mean", "median", "mode", "knn", "iterative"],
@@ -1201,7 +1201,7 @@ def get_preprocessing_options() -> Dict[str, List[str]]:
     }
 
 
-@router.post("/api/eda/analyze")
+@router.post("/eda/analyze")
 def run_eda(dataset_id: str) -> Dict[str, Any]:
     if dataset_id not in DATASETS:
         raise HTTPException(status_code=404, detail="Dataset not found")
@@ -1210,7 +1210,7 @@ def run_eda(dataset_id: str) -> Dict[str, Any]:
     return eda_engine.full_analysis(df)
 
 
-@router.post("/api/eda/statistical-tests")
+@router.post("/eda/statistical-tests")
 def statistical_tests(dataset_id: str, column1: str, column2: Optional[str] = None) -> Dict[str, Any]:
     if dataset_id not in DATASETS:
         raise HTTPException(status_code=404, detail="Dataset not found")
@@ -1222,7 +1222,7 @@ def statistical_tests(dataset_id: str, column1: str, column2: Optional[str] = No
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@router.post("/api/ml/train")
+@router.post("/ml/train")
 def train_models(request: TrainRequest) -> Dict[str, Any]:
     if request.dataset_id not in DATASETS:
         raise HTTPException(status_code=404, detail="Dataset not found")
@@ -1259,7 +1259,7 @@ def train_models(request: TrainRequest) -> Dict[str, Any]:
     return response
 
 
-@router.post("/api/ml/cluster")
+@router.post("/ml/cluster")
 def cluster_dataset(request: ClusterRequest) -> Dict[str, Any]:
     if request.dataset_id not in DATASETS:
         raise HTTPException(status_code=404, detail="Dataset not found")
@@ -1347,7 +1347,7 @@ def cluster_dataset(request: ClusterRequest) -> Dict[str, Any]:
     }
 
 
-@router.post("/api/ml/train-selected")
+@router.post("/ml/train-selected")
 def train_selected_model(request: SelectedModelTrainRequest) -> Dict[str, Any]:
     if request.dataset_id not in DATASETS:
         raise HTTPException(status_code=404, detail="Dataset not found")
@@ -1565,7 +1565,7 @@ def train_selected_model(request: SelectedModelTrainRequest) -> Dict[str, Any]:
     }
 
 
-@router.get("/api/ml/models/{model_id}/download")
+@router.get("/ml/models/{model_id}/download")
 def download_trained_model(model_id: str, format: str = Query(default="pkl")):
     if model_id not in TRAINED_MODELS:
         raise HTTPException(status_code=404, detail="Model not found")
@@ -1610,12 +1610,12 @@ def download_trained_model(model_id: str, format: str = Query(default="pkl")):
     )
 
 
-@router.get("/api/ml/gpu-status")
+@router.get("/ml/gpu-status")
 def gpu_status() -> Dict[str, Any]:
     return ml_engine.get_gpu_status()
 
 
-@router.post("/api/explain/shap")
+@router.post("/explain/shap")
 def get_shap_values(dataset_id: str, model_id: str, num_samples: int = 100) -> Dict[str, Any]:
     if model_id not in TRAINED_MODELS:
         raise HTTPException(status_code=404, detail="Model not found")
@@ -1629,7 +1629,7 @@ def get_shap_values(dataset_id: str, model_id: str, num_samples: int = 100) -> D
     return explainer.compute_shap(df.head(num_samples))
 
 
-@router.post("/api/explain/feature-importance")
+@router.post("/explain/feature-importance")
 def get_feature_importance(model_id: str) -> Dict[str, Any]:
     if model_id not in TRAINED_MODELS:
         raise HTTPException(status_code=404, detail="Model not found")
@@ -1639,7 +1639,7 @@ def get_feature_importance(model_id: str) -> Dict[str, Any]:
     return explainer.get_feature_importance()
 
 
-@router.post("/api/predict")
+@router.post("/predict")
 def predict(request: PredictRequest) -> Dict[str, Any]:
     if request.model_id not in TRAINED_MODELS:
         raise HTTPException(status_code=404, detail="Model not found")
@@ -1676,7 +1676,7 @@ def predict(request: PredictRequest) -> Dict[str, Any]:
     return result
 
 
-@router.post("/api/chat")
+@router.post("/chat")
 def chat(request: ChatRequest) -> Dict[str, Any]:
     session_id = request.session_id or "default"
     dataset_hint = f" Dataset: {request.dataset_id}." if request.dataset_id else ""
@@ -1692,12 +1692,12 @@ def chat(request: ChatRequest) -> Dict[str, Any]:
     return {"response": response, "session_id": session_id}
 
 
-@router.get("/api/chat/history/{session_id}")
+@router.get("/chat/history/{session_id}")
 def chat_history(session_id: str) -> Dict[str, Any]:
     return {"history": CHAT_HISTORY.get(session_id, [])}
 
 
-@router.post("/api/sessions")
+@router.post("/sessions")
 def create_session(payload: Dict[str, Any]) -> Dict[str, Any]:
     session_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
@@ -1710,12 +1710,12 @@ def create_session(payload: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-@router.get("/api/sessions/{session_id}/history")
+@router.get("/sessions/{session_id}/history")
 def session_history(session_id: str) -> Dict[str, Any]:
     return {"history": CHAT_HISTORY.get(session_id, [])}
 
 
-@router.post("/api/query")
+@router.post("/query")
 def query(req: QueryRequest) -> Dict[str, Any]:
     response = (
         "Query received. Use /api/analysis/auto for automated EDA/ML workflows "
@@ -1730,17 +1730,17 @@ def query(req: QueryRequest) -> Dict[str, Any]:
     }
 
 
-@router.post("/api/query/enhanced")
+@router.post("/query/enhanced")
 def enhanced_query(req: QueryRequest) -> Dict[str, Any]:
     return query(req)
 
 
-@router.post("/api/query/langchain")
+@router.post("/query/langchain")
 def langchain_query(req: QueryRequest) -> Dict[str, Any]:
     return query(req)
 
 
-@router.post("/api/analysis/auto")
+@router.post("/analysis/auto")
 def analysis_auto(req: AutoAnalysisRequest) -> Dict[str, Any]:
     if req.dataset_id not in DATASETS:
         raise HTTPException(status_code=404, detail="Dataset not found")
@@ -1780,7 +1780,7 @@ def analysis_auto(req: AutoAnalysisRequest) -> Dict[str, Any]:
     return result
 
 
-@router.post("/api/kaggle/search")
+@router.post("/kaggle/search")
 def kaggle_search(req: KaggleSearchRequest) -> Dict[str, Any]:
     try:
         from kaggle.api.kaggle_api_extended import KaggleApi  # type: ignore[import-not-found]
@@ -1805,7 +1805,7 @@ def kaggle_search(req: KaggleSearchRequest) -> Dict[str, Any]:
         raise HTTPException(status_code=503, detail=f"Kaggle search unavailable: {exc}") from exc
 
 
-@router.post("/api/kaggle/download")
+@router.post("/kaggle/download")
 def kaggle_download(req: KaggleDownloadRequest) -> Dict[str, Any]:
     try:
         from kaggle.api.kaggle_api_extended import KaggleApi  # type: ignore[import-not-found]
