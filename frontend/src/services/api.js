@@ -8,7 +8,10 @@ const API_V1 = `${API_BASE_URL}/api`;
 const API_KEY = import.meta.env.VITE_API_KEY || 'dev-local-9f4e1d2c7a8b3f6e';
 const TENANT_ID = 'public';
 
-console.log('API Base URL:', API_BASE_URL);
+// Remove console.log in production
+if (import.meta.env.DEV) {
+    console.log('API Base URL:', API_BASE_URL)
+}
 
 /**
  * Helper to get standardized headers for all API requests

@@ -1,23 +1,23 @@
 import React, { useState, useRef } from 'react'
-import { Menu, Upload, Database, X } from 'lucide-react'
+import { Menu, Upload, Database, X, AlertCircle } from 'lucide-react'
 import { datasetAPI } from '../services/api'
 
 function Header({ dataset, setDataset, toggleSidebar, isMobile }) {
     const [ uploading, setUploading ] = useState(false)
+    const [ uploadError, setUploadError ] = useState(null)
     const fileInputRef = useRef(null)
 
     const handleFileUpload = async (e) => {
         const file = e.target.files[ 0 ]
         if (!file) return
-        // Reset input so the same file can be re-uploaded
         e.target.value = ''
         setUploading(true)
+        setUploadError(null)
         try {
             const data = await datasetAPI.uploadDataset(file)
             setDataset(data)
         } catch (err) {
-            console.error(err)
-            window.alert(err?.message || 'Upload failed. Please use CSV, XLSX, XLS, JPG, JPEG, or PNG.')
+            setUploadError(err?.message || 'Upload failed. Please use CSV, XLSX, XLS, JPG, JPEG, or PNG.')
         } finally {
             setUploading(false)
         }
@@ -85,6 +85,16 @@ function Header({ dataset, setDataset, toggleSidebar, isMobile }) {
                         </button>
                     </div>
                 </div>
+
+                {uploadError && (
+                    <div className="mt-3 flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+                        <AlertCircle size={15} className="shrink-0" />
+                        <span>{uploadError}</span>
+                        <button onClick={() => setUploadError(null)} className="ml-auto text-red-400 hover:text-red-600">
+                            <X size={14} />
+                        </button>
+                    </div>
+                )}
             </div>
         </header>
     )

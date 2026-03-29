@@ -60,9 +60,10 @@ function getModelMetricValue(metricKey, model) {
 
 function MLResults({ results, onApplyClusterToDataset }) {
     const [ expandedModel, setExpandedModel ] = useState(null)
-    const [ viewMode, setViewMode ] = useState('all') // 'all' or category name
+    const [ viewMode, setViewMode ] = useState('all')
     const [ downloadFormat, setDownloadFormat ] = useState('pkl')
     const [ downloadingModel, setDownloadingModel ] = useState(false)
+    const [ downloadError, setDownloadError ] = useState(null)
 
     if (!results || !results.models) {
         return (
@@ -190,8 +191,7 @@ function MLResults({ results, onApplyClusterToDataset }) {
             link.remove()
             window.URL.revokeObjectURL(url)
         } catch (err) {
-            const message = err?.message || 'Download failed'
-            window.alert(message)
+            setDownloadError(err?.message || 'Download failed')
         } finally {
             setDownloadingModel(false)
         }
@@ -201,7 +201,7 @@ function MLResults({ results, onApplyClusterToDataset }) {
         <div className="space-y-6">
             {/* Selected model summary for dynamic AutoML flow */}
             {(results.selectedModel || results.model_name || results.selectedX || results.selectedY) && (
-                <div className="bg-white border border-gray-200 rounded-lg p-5 space-y-3">
+                <div className="card space-y-3">
                     <h3 className="text-lg font-semibold text-gray-900">Selected Model Training Summary</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                         <div><span className="font-semibold">Model:</span> {results.selectedModel || results.model_name || 'N/A'}</div>
@@ -313,7 +313,7 @@ function MLResults({ results, onApplyClusterToDataset }) {
             )}
 
             {(hasBusinessAlignment || biasLevel || varianceLevel) && (
-                <div className="bg-white border border-gray-200 rounded-lg p-5 space-y-3">
+                <div className="card space-y-3">
                     <h3 className="text-lg font-semibold text-gray-900">Model Evaluation Insights</h3>
 
                     {hasBusinessAlignment && (
@@ -339,12 +339,12 @@ function MLResults({ results, onApplyClusterToDataset }) {
 
                     {(biasLevel || varianceLevel) && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                                 <p className="text-xs uppercase tracking-wide text-slate-500">Bias</p>
                                 <p className="text-base font-semibold text-slate-900">{biasLevel || 'N/A'}</p>
                                 <p className="text-xs text-slate-600 mt-1">Proxy: {biasProxy != null ? Number(biasProxy).toFixed(4) : 'N/A'}</p>
                             </div>
-                            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                                 <p className="text-xs uppercase tracking-wide text-slate-500">Variance</p>
                                 <p className="text-base font-semibold text-slate-900">{varianceLevel || 'N/A'}</p>
                                 <p className="text-xs text-slate-600 mt-1">Proxy: {varianceProxy != null ? Number(varianceProxy).toFixed(4) : 'N/A'}</p>
@@ -355,7 +355,7 @@ function MLResults({ results, onApplyClusterToDataset }) {
             )}
 
             {isClustering && results.cluster_preview?.rows?.length > 0 && (
-                <div className="bg-white border border-gray-200 rounded-lg p-5">
+                <div className="card">
                     <div className="mb-3 flex items-center justify-between gap-3">
                         <h3 className="text-lg font-semibold text-gray-900">Cluster Preview</h3>
                         {typeof onApplyClusterToDataset === 'function' && (
@@ -393,39 +393,47 @@ function MLResults({ results, onApplyClusterToDataset }) {
             )}
 
             {results.model_id && (
-                <div className="bg-white border border-gray-200 rounded-lg p-4 flex flex-col md:flex-row md:items-center gap-2">
-                    <label className="text-sm text-gray-700 font-semibold">Download Trained Model:</label>
-                    <select
-                        value={downloadFormat}
-                        onChange={(e) => setDownloadFormat(e.target.value)}
-                        className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
-                    >
-                        <option value="pkl">Pickle (.pkl)</option>
-                        <option value="joblib">Joblib (.joblib)</option>
-                        <option value="json">Metadata (.json)</option>
-                    </select>
-                    <button
-                        type="button"
-                        onClick={downloadTrainedModel}
-                        disabled={downloadingModel}
-                        className="px-4 py-2 rounded-lg bg-gray-900 text-white text-sm font-medium hover:bg-gray-800 disabled:opacity-60"
-                    >
-                        {downloadingModel ? 'Downloading...' : 'Download Model'}
-                    </button>
-                    <span className="text-xs text-gray-500">Model ID: {results.model_id}</span>
+                <div className="space-y-2">
+                    <div className="card flex flex-col md:flex-row md:items-center gap-3">
+                        <label className="text-sm text-gray-700 font-semibold">Download Trained Model:</label>
+                        <select
+                            value={downloadFormat}
+                            onChange={(e) => setDownloadFormat(e.target.value)}
+                            className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
+                        >
+                            <option value="pkl">Pickle (.pkl)</option>
+                            <option value="joblib">Joblib (.joblib)</option>
+                            <option value="json">Metadata (.json)</option>
+                        </select>
+                        <button
+                            type="button"
+                            onClick={downloadTrainedModel}
+                            disabled={downloadingModel}
+                            className="px-4 py-2 rounded-lg bg-gray-900 text-white text-sm font-medium hover:bg-gray-800 disabled:opacity-60"
+                        >
+                            {downloadingModel ? 'Downloading...' : 'Download Model'}
+                        </button>
+                        <span className="text-xs text-gray-500">Model ID: {results.model_id}</span>
+                    </div>
+                    {downloadError && (
+                        <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                            <span>{downloadError}</span>
+                            <button onClick={() => setDownloadError(null)} className="ml-auto text-red-400 hover:text-red-600 text-xs">✕</button>
+                        </div>
+                    )}
                 </div>
             )}
 
             {/* Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-5 border border-blue-200">
+                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl p-5 border border-blue-200">
                     <div className="flex items-center gap-2 mb-2">
                         <Zap size={18} className="text-blue-600" />
                         <p className="text-gray-600 text-sm font-medium">Models Trained</p>
                     </div>
                     <p className="text-3xl font-bold text-blue-900">{results.models.length}</p>
                 </div>
-                <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-5 border border-green-200">
+                <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-2xl p-5 border border-green-200">
                     <div className="flex items-center gap-2 mb-2">
                         <Trophy size={18} className="text-green-600" />
                         <p className="text-gray-600 text-sm font-medium">{isClassification ? 'Best Accuracy' : isClustering ? 'Best Silhouette' : 'Best R² Score'}</p>
@@ -439,7 +447,7 @@ function MLResults({ results, onApplyClusterToDataset }) {
                         }
                     </p>
                 </div>
-                <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-5 border border-purple-200">
+                <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-2xl p-5 border border-purple-200">
                     <p className="text-gray-600 text-sm font-medium mb-2">Best Model</p>
                     <p className="text-xl font-bold text-purple-900">{bestModel.type}</p>
                     {bestModel.category && (
@@ -448,7 +456,7 @@ function MLResults({ results, onApplyClusterToDataset }) {
                         </span>
                     )}
                 </div>
-                <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg p-5 border border-orange-200">
+                <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-2xl p-5 border border-orange-200">
                     <div className="flex items-center gap-2 mb-2">
                         <Clock size={18} className="text-orange-600" />
                         <p className="text-gray-600 text-sm font-medium">Training Time</p>
@@ -460,34 +468,36 @@ function MLResults({ results, onApplyClusterToDataset }) {
             </div>
 
             {/* Category Filter */}
-            {categories.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                    <button
-                        onClick={() => setViewMode('all')}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition ${viewMode === 'all'
-                            ? 'bg-gray-900 text-white'
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                            }`}
-                    >
-                        All Models ({results.models.length})
-                    </button>
-                    {categories.map(cat => (
+            {
+                categories.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
                         <button
-                            key={cat}
-                            onClick={() => setViewMode(cat)}
-                            className={`px-4 py-2 rounded-lg text-sm font-medium transition ${viewMode === cat
+                            onClick={() => setViewMode('all')}
+                            className={`px-4 py-2 rounded-lg text-sm font-medium transition ${viewMode === 'all'
                                 ? 'bg-gray-900 text-white'
-                                : `${CATEGORY_COLORS[ cat ] || 'bg-gray-100 text-gray-700'} hover:opacity-80`
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                 }`}
                         >
-                            {cat} ({results.models.filter(m => m.category === cat).length})
+                            All Models ({results.models.length})
                         </button>
-                    ))}
-                </div>
-            )}
+                        {categories.map(cat => (
+                            <button
+                                key={cat}
+                                onClick={() => setViewMode(cat)}
+                                className={`px-4 py-2 rounded-lg text-sm font-medium transition ${viewMode === cat
+                                    ? 'bg-gray-900 text-white'
+                                    : `${CATEGORY_COLORS[ cat ] || 'bg-gray-100 text-gray-700'} hover:opacity-80`
+                                    }`}
+                            >
+                                {cat} ({results.models.filter(m => m.category === cat).length})
+                            </button>
+                        ))}
+                    </div>
+                )
+            }
 
             {/* Model Comparison Chart */}
-            <div className="bg-white border border-gray-200 rounded-lg p-6">
+            <div className="card">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">
                     Model Comparison - Top 10 {isClassification ? 'by Accuracy' : isClustering ? 'by Silhouette' : 'by R² Score'}
                 </h3>
@@ -678,7 +688,7 @@ function MLResults({ results, onApplyClusterToDataset }) {
                     </div>
                 ))}
             </div>
-        </div>
+        </div >
     )
 }
 

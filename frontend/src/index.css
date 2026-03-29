@@ -127,8 +127,36 @@ body {
     box-shadow: var(--shadow-soft);
 }
 
-.card:hover {
+/* Only lift on hover when explicitly interactive */
+a>.card:hover,
+button>.card:hover,
+.card.interactive:hover {
     box-shadow: var(--shadow-hover);
+    transform: translateY(-1px);
+}
+
+/* Stat metric tile used across Dashboard, AutoEDA, AutoML */
+.stat-card {
+    @apply rounded-2xl p-5 border transition-all duration-200;
+    background-color: var(--surface-strong);
+    box-shadow: var(--shadow-soft);
+}
+
+/* Alert variants */
+.alert-error {
+    @apply rounded-xl border border-red-200 bg-red-50 p-4 flex items-start gap-3 text-red-800;
+}
+
+.alert-success {
+    @apply rounded-xl border border-green-200 bg-green-50 p-4 flex items-start gap-3 text-green-800;
+}
+
+.alert-warning {
+    @apply rounded-xl border border-amber-200 bg-amber-50 p-4 flex items-start gap-3 text-amber-800;
+}
+
+.alert-info {
+    @apply rounded-xl border border-blue-200 bg-blue-50 p-4 flex items-start gap-3 text-blue-800;
 }
 
 .hero-contrast {

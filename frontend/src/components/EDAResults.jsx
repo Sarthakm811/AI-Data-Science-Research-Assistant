@@ -1,71 +1,77 @@
 import React, { useState } from 'react'
-import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
-import { Download, AlertCircle, TrendingUp } from 'lucide-react'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { BarChart3, TrendingUp, CheckCircle, AlertCircle, PieChart } from 'lucide-react'
+
+const TABS = [
+    { id: 'overview', label: 'Overview', icon: BarChart3 },
+    { id: 'statistical', label: 'Statistics', icon: TrendingUp },
+    { id: 'correlation', label: 'Correlations', icon: TrendingUp },
+    { id: 'quality', label: 'Quality', icon: CheckCircle },
+    { id: 'distribution', label: 'Distribution', icon: PieChart },
+]
+
+function StatBadge({ label, value, color = 'blue' }) {
+    const colors = {
+        blue: 'bg-blue-50 border-blue-200 text-blue-900',
+        green: 'bg-green-50 border-green-200 text-green-900',
+        purple: 'bg-purple-50 border-purple-200 text-purple-900',
+    }
+    return (
+        <div className={`rounded-2xl border p-5 ${colors[ color ]}`}>
+            <p className="text-sm font-medium opacity-70">{label}</p>
+            <p className="mt-1 text-3xl font-bold">{value}</p>
+        </div>
+    )
+}
 
 function EDAResults({ results }) {
     const [ activeTab, setActiveTab ] = useState('overview')
 
     if (!results) {
         return (
-            <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
-                <p className="text-yellow-800">No analysis results available</p>
+            <div className="card border-l-4 border-yellow-400 bg-yellow-50">
+                <div className="flex items-center gap-2 text-yellow-800">
+                    <AlertCircle size={18} />
+                    <p className="font-medium">No analysis results available</p>
+                </div>
             </div>
         )
     }
 
-    const tabs = [
-        { id: 'overview', label: 'Overview', icon: '📊' },
-        { id: 'statistical', label: 'Statistics', icon: '📈' },
-        { id: 'correlation', label: 'Correlations', icon: '🔗' },
-        { id: 'quality', label: 'Quality', icon: '✓' },
-        { id: 'distribution', label: 'Distribution', icon: '📉' }
-    ]
-
     return (
         <div className="space-y-6">
             {/* Tabs */}
-            <div className="flex gap-2 border-b border-gray-200 overflow-x-auto">
-                {tabs.map(tab => (
+            <div className="flex gap-1 overflow-x-auto pb-1">
+                {TABS.map(({ id, label, icon: Icon }) => (
                     <button
-                        key={tab.id}
-                        onClick={() => setActiveTab(tab.id)}
-                        className={`px-4 py-3 font-medium transition whitespace-nowrap ${activeTab === tab.id
-                                ? 'border-b-2 border-indigo-600 text-indigo-600'
-                                : 'text-gray-600 hover:text-gray-900'
+                        key={id}
+                        onClick={() => setActiveTab(id)}
+                        className={`flex items-center gap-2 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-semibold transition-all ${activeTab === id
+                                ? 'bg-slate-900 text-white shadow-md'
+                                : 'text-slate-600 hover:bg-white hover:text-slate-900'
                             }`}
                     >
-                        {tab.icon} {tab.label}
+                        <Icon size={15} />
+                        {label}
                     </button>
                 ))}
             </div>
 
-            {/* Overview Tab */}
             {activeTab === 'overview' && (
                 <div className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-6 border border-blue-200">
-                            <p className="text-gray-600 text-sm font-medium">Total Rows</p>
-                            <p className="text-3xl font-bold text-blue-900">{results.rowCount?.toLocaleString() || 0}</p>
-                        </div>
-                        <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-6 border border-green-200">
-                            <p className="text-gray-600 text-sm font-medium">Total Columns</p>
-                            <p className="text-3xl font-bold text-green-900">{results.columnCount || 0}</p>
-                        </div>
-                        <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-6 border border-purple-200">
-                            <p className="text-gray-600 text-sm font-medium">Missing Values</p>
-                            <p className="text-3xl font-bold text-purple-900">{results.missingCount || 0}</p>
-                        </div>
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                        <StatBadge label="Total Rows" value={(results.rowCount ?? 0).toLocaleString()} color="blue" />
+                        <StatBadge label="Total Columns" value={results.columnCount ?? 0} color="green" />
+                        <StatBadge label="Missing Values" value={results.missingCount ?? 0} color="purple" />
                     </div>
-
-                    {/* Column Types */}
-                    {results.columnTypes && (
-                        <div className="bg-white border border-gray-200 rounded-lg p-6">
-                            <h3 className="text-lg font-semibold text-gray-900 mb-4">Column Types</h3>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {results.columnTypes?.length > 0 && (
+                        <div className="card">
+                            <h3 className="section-title mb-4">Column Types</h3>
+                            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
                                 {results.columnTypes.map((col, idx) => (
-                                    <div key={idx} className="text-center p-4 bg-gray-50 rounded-lg">
-                                        <p className="text-sm font-medium text-gray-700 truncate">{col.name}</p>
-                                        <p className="text-xs text-gray-500 mt-1 capitalize">{col.type}</p>
+                                    <div key={idx} className="rounded-xl bg-slate-50 p-3 text-center">
+                                        <p className="truncate text-sm font-semibold text-slate-700">{col.name}</p>
+                                        <p className="mt-1 text-xs capitalize text-slate-500">{col.type}</p>
                                     </div>
                                 ))}
                             </div>
@@ -74,108 +80,87 @@ function EDAResults({ results }) {
                 </div>
             )}
 
-            {/* Statistical Tab */}
-            {activeTab === 'statistical' && (
-                <div className="space-y-4">
-                    {results.statistics && (
-                        <div className="bg-white border border-gray-200 rounded-lg p-6 overflow-x-auto">
-                            <h3 className="text-lg font-semibold text-gray-900 mb-4">Descriptive Statistics</h3>
-                            <table className="w-full text-sm">
-                                <thead>
-                                    <tr className="border-b border-gray-200">
-                                        <th className="text-left px-4 py-2 font-semibold text-gray-900">Column</th>
-                                        <th className="text-right px-4 py-2 font-semibold text-gray-900">Mean</th>
-                                        <th className="text-right px-4 py-2 font-semibold text-gray-900">Std Dev</th>
-                                        <th className="text-right px-4 py-2 font-semibold text-gray-900">Min</th>
-                                        <th className="text-right px-4 py-2 font-semibold text-gray-900">Max</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {Object.entries(results.statistics).map(([ col, stats ]) => (
-                                        <tr key={col} className="border-b border-gray-100 hover:bg-gray-50">
-                                            <td className="px-4 py-2 font-medium text-gray-900">{col}</td>
-                                            <td className="text-right px-4 py-2 text-gray-700">{typeof stats.mean === 'number' ? stats.mean.toFixed(2) : 'N/A'}</td>
-                                            <td className="text-right px-4 py-2 text-gray-700">{typeof stats.std === 'number' ? stats.std.toFixed(2) : 'N/A'}</td>
-                                            <td className="text-right px-4 py-2 text-gray-700">{typeof stats.min === 'number' ? stats.min.toFixed(2) : 'N/A'}</td>
-                                            <td className="text-right px-4 py-2 text-gray-700">{typeof stats.max === 'number' ? stats.max.toFixed(2) : 'N/A'}</td>
-                                        </tr>
+            {activeTab === 'statistical' && results.statistics && (
+                <div className="card overflow-x-auto">
+                    <h3 className="section-title mb-4">Descriptive Statistics</h3>
+                    <table className="w-full text-sm">
+                        <thead>
+                            <tr className="bg-slate-50">
+                                {[ 'Column', 'Mean', 'Std Dev', 'Min', 'Max' ].map(h => (
+                                    <th key={h} className={`border-b px-4 py-3 font-semibold text-slate-700 ${h === 'Column' ? 'text-left' : 'text-right'}`}>{h}</th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {Object.entries(results.statistics).map(([ col, s ]) => (
+                                <tr key={col} className="border-b hover:bg-slate-50">
+                                    <td className="px-4 py-2.5 font-medium text-slate-800">{col}</td>
+                                    {[ 'mean', 'std', 'min', 'max' ].map(k => (
+                                        <td key={k} className="px-4 py-2.5 text-right text-slate-600">
+                                            {typeof s[ k ] === 'number' ? s[ k ].toFixed(2) : '—'}
+                                        </td>
                                     ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
                 </div>
             )}
 
-            {/* Correlation Tab */}
-            {activeTab === 'correlation' && (
-                <div className="space-y-4">
-                    {results.correlation && (
-                        <div className="bg-white border border-gray-200 rounded-lg p-6">
-                            <h3 className="text-lg font-semibold text-gray-900 mb-4">Top Correlations</h3>
-                            <div className="space-y-2">
-                                {results.correlation.slice(0, 10).map((corr, idx) => (
-                                    <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                        <span className="text-sm font-medium text-gray-900">{corr.variable1} ↔ {corr.variable2}</span>
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-32 bg-gray-200 rounded-full h-2">
-                                                <div
-                                                    className="bg-indigo-600 h-2 rounded-full"
-                                                    style={{ width: `${Math.abs(corr.value) * 100}%` }}
-                                                />
-                                            </div>
-                                            <span className="text-sm font-semibold text-gray-900 min-w-fit">{corr.value.toFixed(3)}</span>
-                                        </div>
-                                    </div>
-                                ))}
+            {activeTab === 'correlation' && results.correlation && (
+                <div className="card">
+                    <h3 className="section-title mb-4">Top Correlations</h3>
+                    <div className="space-y-2">
+                        {results.correlation.slice(0, 10).map((corr, idx) => (
+                            <div key={idx} className="flex items-center gap-3 rounded-xl bg-slate-50 p-3">
+                                <span className="flex-1 text-sm font-medium text-slate-800 truncate">
+                                    {corr.variable1} ↔ {corr.variable2}
+                                </span>
+                                <div className="h-2 w-28 overflow-hidden rounded-full bg-slate-200">
+                                    <div
+                                        className="h-full rounded-full bg-indigo-500"
+                                        style={{ width: `${Math.abs(corr.value) * 100}%` }}
+                                    />
+                                </div>
+                                <span className="w-14 text-right text-sm font-semibold text-slate-700">
+                                    {corr.value.toFixed(3)}
+                                </span>
                             </div>
-                        </div>
-                    )}
+                        ))}
+                    </div>
                 </div>
             )}
 
-            {/* Quality Tab */}
-            {activeTab === 'quality' && (
-                <div className="space-y-4">
-                    {results.dataQuality && (
-                        <div className="bg-white border border-gray-200 rounded-lg p-6">
-                            <h3 className="text-lg font-semibold text-gray-900 mb-4">Data Quality Report</h3>
-                            <div className="space-y-3">
-                                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                    <span className="text-sm font-medium text-gray-900">Completeness</span>
-                                    <span className="text-sm font-semibold text-green-600">{(results.dataQuality.completeness * 100).toFixed(1)}%</span>
-                                </div>
-                                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                    <span className="text-sm font-medium text-gray-900">Missing Values</span>
-                                    <span className="text-sm font-semibold text-gray-600">{results.dataQuality.missingCount}</span>
-                                </div>
-                                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                    <span className="text-sm font-medium text-gray-900">Duplicates</span>
-                                    <span className="text-sm font-semibold text-gray-600">{results.dataQuality.duplicateCount}</span>
-                                </div>
+            {activeTab === 'quality' && results.dataQuality && (
+                <div className="card">
+                    <h3 className="section-title mb-4">Data Quality Report</h3>
+                    <div className="space-y-2">
+                        {[
+                            { label: 'Completeness', value: `${(results.dataQuality.completeness * 100).toFixed(1)}%`, ok: results.dataQuality.completeness > 0.9 },
+                            { label: 'Missing Values', value: results.dataQuality.missingCount, ok: results.dataQuality.missingCount === 0 },
+                            { label: 'Duplicates', value: results.dataQuality.duplicateCount, ok: results.dataQuality.duplicateCount === 0 },
+                        ].map(({ label, value, ok }) => (
+                            <div key={label} className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3">
+                                <span className="text-sm font-medium text-slate-700">{label}</span>
+                                <span className={`text-sm font-semibold ${ok ? 'text-green-600' : 'text-orange-600'}`}>{value}</span>
                             </div>
-                        </div>
-                    )}
+                        ))}
+                    </div>
                 </div>
             )}
 
-            {/* Distribution Tab */}
-            {activeTab === 'distribution' && (
-                <div className="space-y-4">
-                    {results.distributions && results.distributions.length > 0 && (
-                        <div className="bg-white border border-gray-200 rounded-lg p-6">
-                            <h3 className="text-lg font-semibold text-gray-900 mb-4">Value Distributions</h3>
-                            <ResponsiveContainer width="100%" height={300}>
-                                <BarChart data={results.distributions.slice(0, 5)}>
-                                    <CartesianGrid strokeDasharray="3 3" />
-                                    <XAxis dataKey="name" />
-                                    <YAxis />
-                                    <Tooltip />
-                                    <Bar dataKey="count" fill="#4f46e5" />
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </div>
-                    )}
+            {activeTab === 'distribution' && results.distributions?.length > 0 && (
+                <div className="card">
+                    <h3 className="section-title mb-4">Value Distributions</h3>
+                    <ResponsiveContainer width="100%" height={300}>
+                        <BarChart data={results.distributions.slice(0, 5)}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                            <YAxis tick={{ fontSize: 12 }} />
+                            <Tooltip />
+                            <Bar dataKey="count" fill="#6366f1" radius={[ 4, 4, 0, 0 ]} />
+                        </BarChart>
+                    </ResponsiveContainer>
                 </div>
             )}
         </div>

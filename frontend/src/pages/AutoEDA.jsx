@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react'
-import { BarChart3, PieChart, TrendingUp, AlertCircle, CheckCircle, Activity, Zap, Target, Eye, Lightbulb, ArrowUp, ArrowDown, Minus, Filter, Download, RefreshCw } from 'lucide-react'
+import { BarChart3, PieChart, TrendingUp, AlertCircle, CheckCircle, Zap, Target, Eye, Lightbulb, ArrowUp, ArrowDown, Minus, Filter, Download, RefreshCw } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartsPie, Pie, Cell, LineChart, Line, ScatterChart, Scatter, AreaChart, Area, RadialBarChart, RadialBar, Legend, ComposedChart } from 'recharts'
 import { useAnalysis } from '../context/AnalysisContext'
 import { chatAPI, queryAPI, sessionAPI, edaAPI, handleApiError, ensureBackendDataset } from '../services/api'
@@ -674,18 +674,33 @@ function AutoEDA({ dataset }) {
                     {activeTab === 'insights' && (
                         <div className="space-y-6">
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {results.insights.map((insight, i) => (
-                                    <div key={i} className={`card border-l-4 ${insight.type === 'warning' ? 'border-orange-500 bg-orange-50' : insight.type === 'success' ? 'border-green-500 bg-green-50' : 'border-blue-500 bg-blue-50'}`}>
-                                        <div className="flex items-start gap-3">
-                                            <insight.icon size={24} className={insight.type === 'warning' ? 'text-orange-500' : insight.type === 'success' ? 'text-green-500' : 'text-blue-500'} />
-                                            <div>
-                                                <h4 className="font-semibold text-gray-800">{insight.title}</h4>
-                                                <p className="text-sm text-gray-600 mt-1">{insight.desc}</p>
-                                                <p className="text-xs text-gray-500 mt-2 flex items-center gap-1"><Target size={12} /> {insight.action}</p>
+                                {results.insights.map((insight, i) => {
+                                    const borderColor = insight.type === 'warning' ? 'border-orange-500 bg-orange-50'
+                                        : insight.type === 'success' ? 'border-green-500 bg-green-50'
+                                            : 'border-blue-500 bg-blue-50'
+                                    const iconColor = insight.type === 'warning' ? 'text-orange-500'
+                                        : insight.type === 'success' ? 'text-green-500'
+                                            : 'text-blue-500'
+                                    const IconComp = insight.type === 'warning' ? AlertCircle
+                                        : insight.type === 'success' ? CheckCircle
+                                            : Lightbulb
+                                    return (
+                                        <div key={i} className={`card border-l-4 ${borderColor}`}>
+                                            <div className="flex items-start gap-3">
+                                                <IconComp size={22} className={`${iconColor} shrink-0 mt-0.5`} />
+                                                <div>
+                                                    <h4 className="font-semibold text-gray-800">{insight.title}</h4>
+                                                    <p className="text-sm text-gray-600 mt-1">{insight.desc}</p>
+                                                    {insight.action && (
+                                                        <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">
+                                                            <Target size={12} /> {insight.action}
+                                                        </p>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    )
+                                })}
                             </div>
 
                             {/* Recommendations */}
@@ -706,17 +721,19 @@ function AutoEDA({ dataset }) {
                                 </div>
                             </div>
 
-                            {(results.trendInsights?.length || results.segmentationInsights?.length || results.comparativeInsights?.length || results.behavioralInsights?.length) > 0 && (
+                            {(results.trendInsights?.length > 0 || results.segmentationInsights?.length > 0 || results.comparativeInsights?.length > 0 || results.behavioralInsights?.length > 0) && (
                                 <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
                                     {results.trendInsights?.length > 0 && (
                                         <div className="card">
-                                            <h3 className="section-title mb-3">Trend Insights</h3>
+                                            <h3 className="section-title mb-3">📈 Trend Insights</h3>
                                             <div className="space-y-3">
                                                 {results.trendInsights.map((item, idx) => (
-                                                    <div key={`trend-${idx}`} className="rounded-lg bg-slate-50 p-3">
-                                                        <p className="font-semibold text-slate-800">{item.title}</p>
-                                                        <p className="mt-1 text-sm text-slate-600">{item.detail}</p>
-                                                        <p className="mt-1 text-xs text-slate-500">Confidence: {item.confidence}</p>
+                                                    <div key={`trend-${idx}`} className="rounded-lg border border-blue-100 bg-blue-50 p-3">
+                                                        <div className="flex items-center justify-between gap-2 mb-1">
+                                                            <p className="font-semibold text-slate-800 text-sm">{item.title}</p>
+                                                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${item.confidence === 'High' || item.confidence === 'Very High' ? 'bg-green-100 text-green-700' : item.confidence === 'Medium' ? 'bg-yellow-100 text-yellow-700' : 'bg-slate-100 text-slate-500'}`}>{item.confidence}</span>
+                                                        </div>
+                                                        <p className="text-sm text-slate-600">{item.detail}</p>
                                                     </div>
                                                 ))}
                                             </div>
@@ -725,13 +742,15 @@ function AutoEDA({ dataset }) {
 
                                     {results.segmentationInsights?.length > 0 && (
                                         <div className="card">
-                                            <h3 className="section-title mb-3">Segmentation Insights</h3>
+                                            <h3 className="section-title mb-3">🎯 Segmentation Insights</h3>
                                             <div className="space-y-3">
                                                 {results.segmentationInsights.map((item, idx) => (
-                                                    <div key={`seg-${idx}`} className="rounded-lg bg-slate-50 p-3">
-                                                        <p className="font-semibold text-slate-800">{item.title}</p>
-                                                        <p className="mt-1 text-sm text-slate-600">{item.detail}</p>
-                                                        <p className="mt-1 text-xs text-slate-500">Confidence: {item.confidence}</p>
+                                                    <div key={`seg-${idx}`} className="rounded-lg border border-purple-100 bg-purple-50 p-3">
+                                                        <div className="flex items-center justify-between gap-2 mb-1">
+                                                            <p className="font-semibold text-slate-800 text-sm">{item.title}</p>
+                                                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${item.confidence === 'High' || item.confidence === 'Very High' ? 'bg-green-100 text-green-700' : item.confidence === 'Medium' ? 'bg-yellow-100 text-yellow-700' : 'bg-slate-100 text-slate-500'}`}>{item.confidence}</span>
+                                                        </div>
+                                                        <p className="text-sm text-slate-600">{item.detail}</p>
                                                     </div>
                                                 ))}
                                             </div>
@@ -740,13 +759,15 @@ function AutoEDA({ dataset }) {
 
                                     {results.comparativeInsights?.length > 0 && (
                                         <div className="card">
-                                            <h3 className="section-title mb-3">Comparative Insights</h3>
+                                            <h3 className="section-title mb-3">⚖️ Comparative Insights</h3>
                                             <div className="space-y-3">
                                                 {results.comparativeInsights.map((item, idx) => (
-                                                    <div key={`cmp-${idx}`} className="rounded-lg bg-slate-50 p-3">
-                                                        <p className="font-semibold text-slate-800">{item.title}</p>
-                                                        <p className="mt-1 text-sm text-slate-600">{item.detail}</p>
-                                                        <p className="mt-1 text-xs text-slate-500">Confidence: {item.confidence}</p>
+                                                    <div key={`cmp-${idx}`} className="rounded-lg border border-teal-100 bg-teal-50 p-3">
+                                                        <div className="flex items-center justify-between gap-2 mb-1">
+                                                            <p className="font-semibold text-slate-800 text-sm">{item.title}</p>
+                                                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${item.confidence === 'High' || item.confidence === 'Very High' ? 'bg-green-100 text-green-700' : item.confidence === 'Medium' ? 'bg-yellow-100 text-yellow-700' : 'bg-slate-100 text-slate-500'}`}>{item.confidence}</span>
+                                                        </div>
+                                                        <p className="text-sm text-slate-600">{item.detail}</p>
                                                     </div>
                                                 ))}
                                             </div>
@@ -755,13 +776,15 @@ function AutoEDA({ dataset }) {
 
                                     {results.behavioralInsights?.length > 0 && (
                                         <div className="card">
-                                            <h3 className="section-title mb-3">Behavioral Insights</h3>
+                                            <h3 className="section-title mb-3">🧠 Behavioral Insights</h3>
                                             <div className="space-y-3">
                                                 {results.behavioralInsights.map((item, idx) => (
-                                                    <div key={`bhv-${idx}`} className="rounded-lg bg-slate-50 p-3">
-                                                        <p className="font-semibold text-slate-800">{item.title}</p>
-                                                        <p className="mt-1 text-sm text-slate-600">{item.detail}</p>
-                                                        <p className="mt-1 text-xs text-slate-500">Confidence: {item.confidence}</p>
+                                                    <div key={`bhv-${idx}`} className="rounded-lg border border-orange-100 bg-orange-50 p-3">
+                                                        <div className="flex items-center justify-between gap-2 mb-1">
+                                                            <p className="font-semibold text-slate-800 text-sm">{item.title}</p>
+                                                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${item.confidence === 'High' || item.confidence === 'Very High' ? 'bg-green-100 text-green-700' : item.confidence === 'Medium' ? 'bg-yellow-100 text-yellow-700' : 'bg-slate-100 text-slate-500'}`}>{item.confidence}</span>
+                                                        </div>
+                                                        <p className="text-sm text-slate-600">{item.detail}</p>
                                                     </div>
                                                 ))}
                                             </div>
@@ -903,7 +926,7 @@ function AutoEDA({ dataset }) {
                                 <h3 className="text-lg font-semibold mb-4">Correlation Analysis</h3>
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                     {results.correlations.sort((a, b) => Math.abs(b.correlation) - Math.abs(a.correlation)).slice(0, 6).map((c, i) => (
-                                        <div key={i} className="border rounded-lg p-4">
+                                        <div key={i} className="card">
                                             <div className="flex items-center justify-between mb-3">
                                                 <span className="font-medium text-sm">{c.feature1} vs {c.feature2}</span>
                                                 <span className={`px-2 py-1 rounded text-xs font-semibold ${c.strength === 'Strong' ? 'bg-purple-100 text-purple-700' : c.strength === 'Moderate' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>
@@ -1084,7 +1107,7 @@ function AutoEDA({ dataset }) {
                                     <h3 className="text-lg font-semibold mb-4">Categorical Columns Analysis</h3>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         {results.categoricalAnalysis.map((cat, i) => (
-                                            <div key={i} className="border rounded-lg p-4">
+                                            <div key={i} className="card">
                                                 <div className="flex items-center justify-between mb-3">
                                                     <h4 className="font-semibold">{cat.name}</h4>
                                                     <span className="text-xs text-gray-500">{cat.uniqueValues} unique values</span>

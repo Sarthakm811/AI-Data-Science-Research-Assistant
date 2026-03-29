@@ -330,34 +330,57 @@ class EDAEngine:
 
     def _generate_insights(self, df: pd.DataFrame, missing: List[Dict[str, Any]], stats: List[Dict[str, Any]], correlations: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         insights = []
-        
+
         # Missing data insights
         top_missing = sorted([m for m in missing if m["percentage"] > 5], key=lambda x: x["percentage"], reverse=True)
         if top_missing:
             insights.append({
                 "type": "warning",
                 "title": "High Missing Data",
-                "desc": f"{top_missing[0]['name']} has {top_missing[0]['percentage']}% missing values."
+                "desc": f"{top_missing[0]['name']} has {top_missing[0]['percentage']:.1f}% missing values.",
+                "action": "Use Data Cleaning to impute or drop missing rows before modelling."
             })
-            
+
         # Outlier insights
-        top_outliers = sorted([s for s in stats if s["outlierPercentage"] > 5], key=lambda x: x["outlierPercentage"], reverse=True)
+        top_outliers = sorted([s for s in stats if s.get("outlierPercentage", 0) > 5], key=lambda x: x.get("outlierPercentage", 0), reverse=True)
         if top_outliers:
             insights.append({
                 "type": "info",
                 "title": "Outliers Detected",
-                "desc": f"{top_outliers[0]['name']} contains significant outliers ({top_outliers[0]['outlierPercentage']}%)."
+                "desc": f"{top_outliers[0]['name']} contains significant outliers ({top_outliers[0].get('outlierPercentage', 0):.1f}%).",
+                "action": "Apply IQR clipping or removal in Data Cleaning to reduce noise."
             })
-            
+
         # Correlation insights
-        strong_corr = [c for c in correlations if abs(c["correlation"]) > 0.8]
+        strong_corr = [c for c in correlations if abs(c.get("correlation", 0)) > 0.8]
         if strong_corr:
             insights.append({
                 "type": "success",
-                "title": "Strong Patterns",
-                "desc": f"Strong correlation found between {strong_corr[0]['feature1']} and {strong_corr[0]['feature2']}."
+                "title": "Strong Patterns Found",
+                "desc": f"Strong correlation between {strong_corr[0]['feature1']} and {strong_corr[0]['feature2']} (r={strong_corr[0]['correlation']:.2f}).",
+                "action": "Consider removing one of these features to reduce multicollinearity."
             })
-            
+
+        # Skewness insights
+        high_skew = [s for s in stats if abs(s.get("skewness", 0)) > 2]
+        if high_skew:
+            insights.append({
+                "type": "info",
+                "title": "Skewed Distributions",
+                "desc": f"{high_skew[0]['name']} is heavily skewed (skewness={high_skew[0].get('skewness', 0):.2f}).",
+                "action": "Apply log or Box-Cox transformation in Feature Engineering."
+            })
+
+        # Quality score insight
+        missing_total = sum(m["missing"] for m in missing)
+        if missing_total == 0 and not top_outliers:
+            insights.append({
+                "type": "success",
+                "title": "Clean Dataset",
+                "desc": "No missing values or significant outliers detected.",
+                "action": "Dataset is ready for Feature Engineering and ML training."
+            })
+
         return insights
 
     def _get_trend_insights(self, df: pd.DataFrame, stats: List[Dict[str, Any]]) -> List[Dict[str, Any]]:

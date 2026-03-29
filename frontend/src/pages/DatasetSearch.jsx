@@ -242,7 +242,7 @@ function DatasetSearch({ setDataset }) {
 
             {/* Alerts */}
             {error && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
+                <div className="alert-error">
                     <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
                     <div>
                         <h3 className="font-semibold text-red-900">Error</h3>
@@ -252,7 +252,7 @@ function DatasetSearch({ setDataset }) {
             )}
 
             {uploadSuccess && (
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-start gap-3">
+                <div className="alert-success">
                     <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
                     <div>
                         <h3 className="font-semibold text-green-900">Success</h3>
@@ -414,7 +414,7 @@ function DatasetSearch({ setDataset }) {
                         </div>
 
                         {uploadError && (
-                            <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2">
+                            <div className="rounded-xl border border-red-200 bg-red-50 p-3 flex items-start gap-2">
                                 <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
                                 <p className="text-red-700 text-sm">{uploadError}</p>
                             </div>
@@ -438,7 +438,7 @@ function DatasetSearch({ setDataset }) {
                             )}
                         </button>
 
-                        <div className="bg-blue-50 rounded-lg p-4">
+                        <div className="rounded-xl bg-blue-50 p-4">
                             <h4 className="font-semibold text-blue-900 text-sm mb-2">Supported Formats</h4>
                             <ul className="text-sm text-blue-800 space-y-1">
                                 <li>• CSV (.csv)</li>
