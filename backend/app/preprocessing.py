@@ -11,11 +11,9 @@ from sklearn.preprocessing import (
     LabelEncoder, OneHotEncoder, QuantileTransformer
 )
 from sklearn.impute import SimpleImputer, KNNImputer
-from sklearn.experimental import enable_iterative_imputer
 from sklearn.impute import IterativeImputer
 from sklearn.feature_selection import (
-    VarianceThreshold, SelectKBest, f_classif, f_regression,
-    mutual_info_classif, mutual_info_regression, RFE
+    VarianceThreshold, SelectKBest, mutual_info_classif, mutual_info_regression, RFE
 )
 from sklearn.ensemble import IsolationForest, RandomForestClassifier, RandomForestRegressor
 from scipy import stats

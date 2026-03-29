@@ -2,9 +2,9 @@
 Tool Registry API Routes
 """
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import Optional, List, Dict, Any
+from typing import Optional, Dict, Any
 from .tool_registry import tool_registry
 
 router = APIRouter(prefix="/api/v1/tools", tags=["tools"])

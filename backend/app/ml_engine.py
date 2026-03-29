@@ -5,7 +5,7 @@ Supports 40+ models with hyperparameter tuning
 
 import numpy as np
 import pandas as pd
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Tuple
 from sklearn.model_selection import (
     train_test_split,
     cross_val_score,
@@ -18,14 +18,13 @@ from sklearn.model_selection import (
 from sklearn.metrics import (
     accuracy_score, precision_score, recall_score, f1_score,
     r2_score, mean_squared_error, mean_absolute_error,
-    confusion_matrix, classification_report, roc_auc_score, roc_curve,
+    roc_auc_score, roc_curve,
     silhouette_score, calinski_harabasz_score, davies_bouldin_score,
 )
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.cluster import KMeans, DBSCAN, AgglomerativeClustering
 import warnings
 import time
-import joblib
 
 warnings.filterwarnings('ignore')
 
@@ -245,16 +244,14 @@ class MLEngine:
         from sklearn.ensemble import (
             RandomForestClassifier, ExtraTreesClassifier, 
             GradientBoostingClassifier, AdaBoostClassifier,
-            BaggingClassifier, VotingClassifier, StackingClassifier,
-            HistGradientBoostingClassifier
+            BaggingClassifier, HistGradientBoostingClassifier
         )
-        from sklearn.svm import SVC, NuSVC, LinearSVC
-        from sklearn.neighbors import KNeighborsClassifier, RadiusNeighborsClassifier
+        from sklearn.svm import SVC, NuSVC
+        from sklearn.neighbors import KNeighborsClassifier
         from sklearn.tree import DecisionTreeClassifier
-        from sklearn.naive_bayes import GaussianNB, MultinomialNB, BernoulliNB, ComplementNB
+        from sklearn.naive_bayes import GaussianNB, BernoulliNB
         from sklearn.discriminant_analysis import LinearDiscriminantAnalysis, QuadraticDiscriminantAnalysis
         from sklearn.neural_network import MLPClassifier
-        from sklearn.gaussian_process import GaussianProcessClassifier
         
         models = {
             # Boosting
@@ -360,14 +357,12 @@ class MLEngine:
         from sklearn.ensemble import (
             RandomForestRegressor, ExtraTreesRegressor,
             GradientBoostingRegressor, AdaBoostRegressor,
-            BaggingRegressor, VotingRegressor, StackingRegressor,
-            HistGradientBoostingRegressor
+            BaggingRegressor, HistGradientBoostingRegressor
         )
-        from sklearn.svm import SVR, NuSVR, LinearSVR
+        from sklearn.svm import SVR, NuSVR
         from sklearn.neighbors import KNeighborsRegressor
         from sklearn.tree import DecisionTreeRegressor
         from sklearn.neural_network import MLPRegressor
-        from sklearn.gaussian_process import GaussianProcessRegressor
         from sklearn.kernel_ridge import KernelRidge
         
         models = {

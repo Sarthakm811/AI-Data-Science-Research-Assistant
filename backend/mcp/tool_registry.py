@@ -13,8 +13,11 @@ logger = logging.getLogger(__name__)
 class ToolRegistry:
     """Registry for MCP-style tool manifests"""
 
-    def __init__(self, manifests_dir: str = "backend/mcp/manifests"):
-        self.manifests_dir = Path(manifests_dir)
+    def __init__(self, manifests_dir: Optional[str] = None):
+        if manifests_dir is None:
+            self.manifests_dir = Path(__file__).parent / "manifests"
+        else:
+            self.manifests_dir = Path(manifests_dir)
         self.tools: Dict[str, dict] = {}
         self.load_manifests()
 

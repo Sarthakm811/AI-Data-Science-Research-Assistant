@@ -8,10 +8,8 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-import seaborn as sns
-import matplotlib.pyplot as plt
 from scipy import stats
-from typing import Dict, List, Optional, Tuple
+from typing import Optional
 import warnings
 
 warnings.filterwarnings("ignore")

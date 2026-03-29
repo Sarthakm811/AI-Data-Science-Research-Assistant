@@ -5,7 +5,6 @@ Database configuration supporting PostgreSQL and Firebase
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from typing import Optional
 import logging
 
 from app.utils.config import settings

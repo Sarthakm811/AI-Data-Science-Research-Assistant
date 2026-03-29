@@ -10,7 +10,6 @@ import seaborn as sns
 from matplotlib.backends.backend_pdf import PdfPages
 from datetime import datetime
 import io
-from typing import Optional
 import warnings
 
 warnings.filterwarnings("ignore")

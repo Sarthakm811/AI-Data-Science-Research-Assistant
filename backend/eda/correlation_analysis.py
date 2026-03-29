@@ -4,10 +4,8 @@ Correlation Analysis - Multi-type correlation and VIF
 
 import pandas as pd
 import numpy as np
-from scipy import stats
 from scipy.stats import chi2_contingency
 from typing import Dict, List
-from sklearn.preprocessing import LabelEncoder
 import warnings
 
 warnings.filterwarnings("ignore")

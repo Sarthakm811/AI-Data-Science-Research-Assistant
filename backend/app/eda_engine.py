@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
-from scipy.stats import chi2_contingency, f_oneway, kruskal, mannwhitneyu, shapiro, ttest_ind
+from scipy.stats import chi2_contingency, mannwhitneyu, shapiro, ttest_ind
 
 
 class EDAEngine:

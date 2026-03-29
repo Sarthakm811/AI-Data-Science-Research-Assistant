@@ -6,7 +6,7 @@ import pandas as pd
 import numpy as np
 from scipy import stats
 from scipy.stats import shapiro, kstest, normaltest
-from typing import Dict, List, Tuple
+from typing import Dict, List
 import warnings
 
 warnings.filterwarnings("ignore")

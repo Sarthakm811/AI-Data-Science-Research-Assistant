@@ -3,8 +3,7 @@ Structural EDA - Schema and Relationship Analysis
 """
 
 import pandas as pd
-import numpy as np
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Optional
 
 
 class StructuralAnalyzer:

@@ -5,7 +5,6 @@ Data Quality Assessment - Data Reliability Index (DRI)
 import pandas as pd
 import numpy as np
 from typing import Dict
-from scipy.stats import skew
 
 
 class DataQualityAnalyzer:

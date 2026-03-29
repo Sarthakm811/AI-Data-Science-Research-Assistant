@@ -31,10 +31,8 @@ class AutoAnalysisRequest(BaseModel):
 async def enhanced_query(request: EnhancedQueryRequest):
     """Enhanced query with AutoEDA and AutoML"""
     try:
-        from app.main import app
 
-        redis_service = app.state.redis
-        agent = EnhancedAgentService(redis_service)
+        agent = EnhancedAgentService()
 
         result = await agent.handle_comprehensive_query(
             session_id=request.session_id,
@@ -53,10 +51,9 @@ async def enhanced_query(request: EnhancedQueryRequest):
 async def search_datasets(request: DatasetSearchRequest):
     """Search Kaggle datasets"""
     try:
-        from app.main import app
 
-        redis_service = app.state.redis
-        agent = EnhancedAgentService(redis_service)
+
+        agent = EnhancedAgentService()
 
         results = await agent.kaggle_tool.search_datasets(request.query)
         return {"datasets": results}
@@ -68,10 +65,9 @@ async def search_datasets(request: DatasetSearchRequest):
 async def auto_analysis(request: AutoAnalysisRequest):
     """Automatic comprehensive analysis"""
     try:
-        from app.main import app
 
-        redis_service = app.state.redis
-        agent = EnhancedAgentService(redis_service)
+
+        agent = EnhancedAgentService()
 
         query = f"Perform {request.analysis_type} analysis on this dataset"
 

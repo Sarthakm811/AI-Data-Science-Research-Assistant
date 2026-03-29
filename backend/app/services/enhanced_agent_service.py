@@ -7,7 +7,6 @@ import logging
 import pandas as pd
 
 from app.utils.config import settings
-from app.services.redis_service import RedisService
 from app.tools.kaggle_tool import KaggleTool
 from app.tools.execution_tool import ExecutionTool
 from app.tools.eda_tool import EDATool
@@ -20,10 +19,9 @@ logger = logging.getLogger(__name__)
 class EnhancedAgentService:
     """Enhanced agent with AutoEDA, AutoML, and comprehensive insights"""
 
-    def __init__(self, redis_service: RedisService):
+    def __init__(self):
         genai.configure(api_key=settings.gemini_api_key)
         self.model = genai.GenerativeModel("models/gemini-2.0-flash")
-        self.redis = redis_service
         self.kaggle_tool = KaggleTool()
         self.execution_tool = ExecutionTool()
         self.eda_tool = EDATool()
@@ -99,15 +97,7 @@ class EnhancedAgentService:
                 )
                 results["notebook_path"] = notebook_path
 
-            # Update session
-            await self.redis.append_to_history(
-                session_id,
-                {
-                    "query": query,
-                    "job_id": job_id,
-                    "summary": results.get("insights", "")[:200],
-                },
-            )
+            # Session/history update skipped (no Redis)
 
             return results
 

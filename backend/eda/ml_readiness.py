@@ -7,10 +7,7 @@ import numpy as np
 from sklearn.feature_selection import (
     mutual_info_classif,
     mutual_info_regression,
-    f_classif,
-    chi2,
 )
-from sklearn.preprocessing import LabelEncoder
 from typing import Dict, List, Optional
 import warnings
 
