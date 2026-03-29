@@ -21,7 +21,7 @@ services:
       - key: ALLOW_CODE_EXECUTION
         value: "false"
       - key: ALLOWED_ORIGINS
-        sync: false
+        value: "https://dsra-frontend.onrender.com"
       - key: DATABASE_URL
         sync: false
       - key: REDIS_URL
@@ -35,7 +35,7 @@ services:
     autoDeploy: true
     envVars:
       - key: VITE_API_URL
-        sync: false
+        value: "https://dsra-backend.onrender.com"
       - key: VITE_API_KEY
         sync: false
       - key: VITE_TENANT_ID
