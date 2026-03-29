@@ -368,6 +368,21 @@ function AutoEDA({ dataset }) {
                     })
                     const sorted = Object.entries(valueCounts).sort((a, b) => b[ 1 ] - a[ 1 ])
 
+                    // Heavy advanced-insight loops should run once, not once per categorical column.
+                    if (col !== categoricalCols[ 0 ]) {
+                        const entropy = -sorted.reduce((e, [ _, count ]) => {
+                            const p = count / dataset.rowCount
+                            return e + (p > 0 ? p * Math.log2(p) : 0)
+                        }, 0)
+
+                        return {
+                            name: col, uniqueValues: Object.keys(valueCounts).length,
+                            topValues: sorted.slice(0, 10).map(([ name, value ]) => ({ name, value, percentage: (value / dataset.rowCount * 100).toFixed(1) })),
+                            entropy: entropy.toFixed(2),
+                            dominance: sorted.length ? (sorted[ 0 ][ 1 ] / dataset.rowCount * 100).toFixed(1) : '0.0'
+                        }
+                    }
+
                     const revenueColumn = pickNumericByKeyword(numericCols, [ 'revenue', 'sales', 'amount', 'price', 'value', 'total' ])
                     const customerColumn = categoricalCols.find((c) => /customer|client|user|account|buyer|member/i.test(c)) || null
                     const regionColumn = categoricalCols.find((c) => /region|country|state|city|territory|zone/i.test(c)) || null
@@ -587,7 +602,7 @@ function AutoEDA({ dataset }) {
                         name: col, uniqueValues: Object.keys(valueCounts).length,
                         topValues: sorted.slice(0, 10).map(([ name, value ]) => ({ name, value, percentage: (value / dataset.rowCount * 100).toFixed(1) })),
                         entropy: entropy.toFixed(2),
-                        dominance: (sorted[ 0 ][ 1 ] / dataset.rowCount * 100).toFixed(1)
+                        dominance: sorted.length ? (sorted[ 0 ][ 1 ] / dataset.rowCount * 100).toFixed(1) : '0.0'
                     }
                 })
 
