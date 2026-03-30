@@ -21,10 +21,8 @@ services:
       - key: ALLOW_CODE_EXECUTION
         value: "false"
       - key: ALLOWED_ORIGINS
-        value: "https://dsra-frontend.onrender.com"
+        value: "https://sarthakm811.github.io"
       - key: DATABASE_URL
-        sync: false
-      - key: REDIS_URL
         sync: false
 
   - type: static

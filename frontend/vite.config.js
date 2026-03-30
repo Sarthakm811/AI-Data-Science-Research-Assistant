@@ -2,8 +2,10 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 export default defineConfig(({ mode }) => {
-    const isProd = mode === 'production';
+    const isProd = mode === 'production'
+
     return {
+        // Must match the GitHub Pages repo path exactly
         base: isProd ? '/AI-Data-Science-Research-Assistant/' : '/',
         plugins: [ react() ],
         build: {
@@ -12,7 +14,7 @@ export default defineConfig(({ mode }) => {
                     manualChunks: {
                         'vendor-react': [ 'react', 'react-dom', 'react-router-dom' ],
                         'vendor-recharts': [ 'recharts' ],
-                        'vendor-icons': [ 'lucide-react' ]
+                        'vendor-icons': [ 'lucide-react' ],
                     }
                 }
             }

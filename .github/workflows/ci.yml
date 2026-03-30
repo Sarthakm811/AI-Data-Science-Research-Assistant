@@ -12,7 +12,6 @@ jobs:
     env:
       GEMINI_API_KEY: test-key
       DATABASE_URL: sqlite:///test.db
-      REDIS_URL: redis://localhost:6379
       PYTEST_DISABLE_PLUGIN_AUTOLOAD: '1'
     steps:
       - uses: actions/checkout@v3

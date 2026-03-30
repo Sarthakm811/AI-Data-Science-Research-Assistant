@@ -27,13 +27,18 @@ def _allowed_origins() -> List[str]:
     env = os.getenv("ALLOWED_ORIGINS", "")
     if env.strip():
         return [origin.strip() for origin in env.split(",") if origin.strip()]
-    return ["http://localhost:3000", "http://127.0.0.1:3000"]
+    # Default: allow localhost dev + common deployment origins
+    return [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:5173",
+    ]
 
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_allowed_origins(),
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization", "X-API-Key", "X-Tenant-Id"],
     max_age=600,
