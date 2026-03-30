@@ -246,64 +246,139 @@ def _encode_targets_for_classification(df_y: pd.DataFrame) -> tuple[pd.DataFrame
 
 def _resolve_model(model_name: str, task_type: str):
     from sklearn.base import clone
-    from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
-    from sklearn.linear_model import LinearRegression, LogisticRegression
+    from sklearn.discriminant_analysis import LinearDiscriminantAnalysis, QuadraticDiscriminantAnalysis
+    from sklearn.ensemble import (
+        AdaBoostClassifier, AdaBoostRegressor,
+        BaggingClassifier, BaggingRegressor,
+        ExtraTreesClassifier, ExtraTreesRegressor,
+        GradientBoostingClassifier, GradientBoostingRegressor,
+        RandomForestClassifier, RandomForestRegressor,
+    )
+    from sklearn.gaussian_process import GaussianProcessClassifier, GaussianProcessRegressor
+    from sklearn.kernel_ridge import KernelRidge
+    from sklearn.linear_model import (
+        BayesianRidge, ElasticNet, HuberRegressor, Lars, Lasso, LassoLars,
+        LinearRegression, LogisticRegression, OrthogonalMatchingPursuit,
+        PassiveAggressiveClassifier, PassiveAggressiveRegressor,
+        RANSACRegressor, Ridge, RidgeClassifier, SGDClassifier, SGDRegressor,
+        TheilSenRegressor,
+    )
     from sklearn.multioutput import MultiOutputClassifier, MultiOutputRegressor
+    from sklearn.naive_bayes import BernoulliNB, ComplementNB, GaussianNB, MultinomialNB
     from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
-    from sklearn.svm import SVC, SVR
-    from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
+    from sklearn.neural_network import MLPClassifier, MLPRegressor
+    from sklearn.svm import SVC, SVR, LinearSVC, LinearSVR
+    from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor, ExtraTreeClassifier, ExtraTreeRegressor
 
     name = model_name.strip().lower()
 
     regression_models = {
+        # Linear
         "linear regression": LinearRegression(),
+        "ridge": Ridge(alpha=1.0),
+        "lasso": Lasso(alpha=0.1, max_iter=2000),
+        "elastic net": ElasticNet(alpha=0.1, max_iter=2000),
+        "bayesian ridge": BayesianRidge(),
+        "sgd regressor": SGDRegressor(max_iter=1000, random_state=42),
+        "passive aggressive regressor": PassiveAggressiveRegressor(max_iter=1000, random_state=42),
+        "lars": Lars(random_state=42),
+        "lars lasso": LassoLars(random_state=42),
+        "orthogonal matching pursuit": OrthogonalMatchingPursuit(),
+        # Robust
+        "huber regressor": HuberRegressor(max_iter=1000),
+        "ransac regressor": RANSACRegressor(random_state=42),
+        "theil-sen regressor": TheilSenRegressor(random_state=42),
+        # Tree
         "decision tree": DecisionTreeRegressor(random_state=42),
+        "extra tree": ExtraTreeRegressor(random_state=42),
+        # Ensemble
         "random forest": RandomForestRegressor(n_estimators=200, random_state=42),
-        "svm": SVR(),
+        "extra trees": ExtraTreesRegressor(n_estimators=200, random_state=42),
+        "gradient boosting": GradientBoostingRegressor(n_estimators=200, random_state=42),
+        "adaboost": AdaBoostRegressor(n_estimators=100, random_state=42),
+        "bagging": BaggingRegressor(n_estimators=100, random_state=42),
+        # Distance
         "knn": KNeighborsRegressor(n_neighbors=5),
+        # SVM
+        "svm": SVR(),
+        "linear svr": LinearSVR(max_iter=2000),
+        # Kernel
+        "kernel ridge": KernelRidge(),
+        # Neural
+        "mlp": MLPRegressor(hidden_layer_sizes=(100, 50), max_iter=500, random_state=42),
+        # Gaussian
+        "gaussian process": GaussianProcessRegressor(random_state=42),
     }
 
     classification_models = {
+        # Linear
         "logistic regression": LogisticRegression(max_iter=2000),
+        "ridge classifier": RidgeClassifier(),
+        "sgd classifier": SGDClassifier(max_iter=1000, random_state=42),
+        "passive aggressive classifier": PassiveAggressiveClassifier(max_iter=1000, random_state=42),
+        # Tree
         "decision tree": DecisionTreeClassifier(random_state=42),
+        "extra tree": ExtraTreeClassifier(random_state=42),
+        # Ensemble
         "random forest": RandomForestClassifier(n_estimators=200, random_state=42),
-        "svm": SVC(probability=True),
+        "extra trees": ExtraTreesClassifier(n_estimators=200, random_state=42),
+        "gradient boosting": GradientBoostingClassifier(n_estimators=200, random_state=42),
+        "adaboost": AdaBoostClassifier(n_estimators=100, random_state=42),
+        "bagging": BaggingClassifier(n_estimators=100, random_state=42),
+        # Distance
         "knn": KNeighborsClassifier(n_neighbors=5),
+        # SVM
+        "svm": SVC(probability=True),
+        "linear svc": LinearSVC(max_iter=2000),
+        # Naive Bayes
+        "gaussian nb": GaussianNB(),
+        "bernoulli nb": BernoulliNB(),
+        # Discriminant
+        "lda": LinearDiscriminantAnalysis(),
+        "qda": QuadraticDiscriminantAnalysis(),
+        # Neural
+        "mlp": MLPClassifier(hidden_layer_sizes=(100, 50), max_iter=500, random_state=42),
+        # Gaussian
+        "gaussian process": GaussianProcessClassifier(random_state=42),
     }
 
+    # Optional heavy deps
     try:
-        from xgboost import XGBClassifier, XGBRegressor  # type: ignore[import-not-found]
-
+        from xgboost import XGBClassifier, XGBRegressor  # type: ignore
         regression_models["xgboost"] = XGBRegressor(
-            n_estimators=200,
-            learning_rate=0.05,
-            max_depth=6,
-            subsample=0.8,
-            colsample_bytree=0.8,
-            random_state=42,
-            n_jobs=2,
+            n_estimators=200, learning_rate=0.05, max_depth=6,
+            subsample=0.8, colsample_bytree=0.8, random_state=42, n_jobs=2,
         )
         classification_models["xgboost"] = XGBClassifier(
-            n_estimators=200,
-            learning_rate=0.05,
-            max_depth=6,
-            subsample=0.8,
-            colsample_bytree=0.8,
-            random_state=42,
-            n_jobs=2,
+            n_estimators=200, learning_rate=0.05, max_depth=6,
+            subsample=0.8, colsample_bytree=0.8, random_state=42, n_jobs=2,
             eval_metric="logloss",
         )
     except Exception:
         pass
 
+    try:
+        from lightgbm import LGBMClassifier, LGBMRegressor  # type: ignore
+        regression_models["lightgbm"] = LGBMRegressor(n_estimators=200, random_state=42, verbose=-1)
+        classification_models["lightgbm"] = LGBMClassifier(n_estimators=200, random_state=42, verbose=-1)
+    except Exception:
+        pass
+
+    try:
+        from catboost import CatBoostClassifier, CatBoostRegressor  # type: ignore
+        regression_models["catboost"] = CatBoostRegressor(iterations=200, random_state=42, verbose=False)
+        classification_models["catboost"] = CatBoostClassifier(iterations=200, random_state=42, verbose=False)
+    except Exception:
+        pass
+
     if task_type == "regression":
         if name not in regression_models:
-            raise HTTPException(status_code=400, detail=f"Model '{model_name}' is not available for regression")
+            raise HTTPException(status_code=400, detail=f"Model '{model_name}' is not available for regression. Available: {sorted(regression_models.keys())}")
         return regression_models[name]
 
     if task_type == "classification":
         if name not in classification_models:
-            raise HTTPException(status_code=400, detail=f"Model '{model_name}' is not available for classification")
+            raise HTTPException(status_code=400, detail=f"Model '{model_name}' is not available for classification. Available: {sorted(classification_models.keys())}")
         return classification_models[name]
 
     # multi_output
@@ -1260,6 +1335,17 @@ def train_models(request: TrainRequest) -> Dict[str, Any]:
 
     response = {k: v for k, v in results.items() if k != "best_model"}
     response["model_id"] = model_id
+    # Expose row/feature counts so the frontend summary card never shows N/A
+    data_shape = results.get("data_shape", {})
+    train_shape = data_shape.get("train", (0, 0))
+    test_shape = data_shape.get("test", (0, 0))
+    response["total_rows"] = int(train_shape[0]) + int(test_shape[0])
+    response["train_rows"] = int(train_shape[0])
+    response["test_rows"] = int(test_shape[0])
+    response["feature_count"] = int(train_shape[1]) if len(train_shape) > 1 else 0
+    response["trainingTime"] = results.get("training_time")
+    response["x_columns"] = [c for c in df.columns if c != request.target_column]
+    response["y_columns"] = [request.target_column]
     return response
 
 
