@@ -39,7 +39,7 @@ class Settings(BaseSettings):
             "",
             "MISSING_GEMINI_API_KEY",
         }
-        # We only log or provide a warning during initialization. 
+        # We only log or provide a warning during initialization.
         # API endpoints will fail when used if these are still weak.
         if self.secret_key in weak_values or self.gemini_api_key in weak_values:
             import logging

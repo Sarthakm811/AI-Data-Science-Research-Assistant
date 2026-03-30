@@ -230,14 +230,11 @@ export const edaAPI = {
     },
 
     async runStatisticalTests(datasetId, column1, column2 = null) {
-        const response = await fetch(`${API_V1}/eda/statistical-tests`, {
+        const params = new URLSearchParams({ dataset_id: datasetId, column1 })
+        if (column2) params.append('column2', column2)
+        const response = await fetch(`${API_V1}/eda/statistical-tests?${params}`, {
             method: 'POST',
-            headers: getHeaders(),
-            body: JSON.stringify({
-                dataset_id: datasetId,
-                column1,
-                column2
-            })
+            headers: getHeaders()
         });
         if (!response.ok) throw new Error('Failed to run statistical tests');
         return response.json();
@@ -317,14 +314,11 @@ export const chatAPI = {
 
 export const reportAPI = {
     async generateReport(datasetId, type = 'pdf', sessionId = null) {
-        const response = await fetch(`${API_V1}/report/generate`, {
+        const params = new URLSearchParams({ dataset_id: datasetId, type })
+        if (sessionId) params.append('session_id', sessionId)
+        const response = await fetch(`${API_V1}/report/generate?${params}`, {
             method: 'POST',
-            headers: getHeaders(),
-            body: JSON.stringify({
-                dataset_id: datasetId,
-                type,
-                session_id: sessionId
-            })
+            headers: getHeaders()
         });
         if (!response.ok) throw new Error('Failed to generate report');
 
@@ -358,7 +352,7 @@ export const reportAPI = {
 
 export const toolsAPI = {
     async listTools(scope = null) {
-        const url = scope ? `${API_BASE_URL}/api/v1/tools?scope=${scope}` : `${API_BASE_URL}/api/v1/tools`;
+        const url = scope ? `${API_V1}/tools?scope=${scope}` : `${API_V1}/tools`;
         const response = await fetch(url, {
             headers: getHeaders()
         });
@@ -367,7 +361,7 @@ export const toolsAPI = {
     },
 
     async getTool(toolId) {
-        const response = await fetch(`${API_BASE_URL}/api/v1/tools/${toolId}`, {
+        const response = await fetch(`${API_V1}/tools/${toolId}`, {
             headers: getHeaders()
         });
         if (!response.ok) throw new Error('Failed to fetch tool');
@@ -375,7 +369,7 @@ export const toolsAPI = {
     },
 
     async validateTool(toolId, inputs) {
-        const response = await fetch(`${API_BASE_URL}/api/v1/tools/${toolId}/validate`, {
+        const response = await fetch(`${API_V1}/tools/${toolId}/validate`, {
             method: 'POST',
             headers: getHeaders(),
             body: JSON.stringify({ inputs })
@@ -385,7 +379,7 @@ export const toolsAPI = {
     },
 
     async callTool(toolId, inputs) {
-        const response = await fetch(`${API_BASE_URL}/api/v1/tools/${toolId}/call`, {
+        const response = await fetch(`${API_V1}/tools/${toolId}/call`, {
             method: 'POST',
             headers: getHeaders(),
             body: JSON.stringify({ inputs })

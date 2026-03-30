@@ -44,13 +44,18 @@ app.add_middleware(
     max_age=600,
 )
 
-app.include_router(runtime_router, prefix="/api")
-app.include_router(enhanced_router, prefix="/api")
+# Specialized routers must be registered BEFORE runtime_router to avoid
+# duplicate route shadowing (FastAPI matches first registered route).
 app.include_router(sessions_router, prefix="/api")
 app.include_router(query_router, prefix="/api")
 app.include_router(langchain_router, prefix="/api")
+app.include_router(enhanced_router, prefix="/api")
 app.include_router(datasets_router, prefix="/api")
 app.include_router(mcp_router, prefix="/api")
+# runtime_router last — its duplicate stubs for /sessions, /query/enhanced,
+# /query/langchain, /analysis/auto, /datasets/search are now unreachable
+# (intentional — the real implementations above take precedence).
+app.include_router(runtime_router, prefix="/api")
 
 
 @app.get("/")

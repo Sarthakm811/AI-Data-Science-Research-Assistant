@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react'
 import { Play, AlertCircle } from 'lucide-react'
 import MLResults from '../components/MLResults'
 import { useAnalysis } from '../context/AnalysisContext'
-import { datasetAPI, ensureBackendDataset } from '../services/api'
+import { ensureBackendDataset } from '../services/api'
 
 const MODEL_OPTIONS = [
     { label: 'Linear Regression', value: 'Linear Regression', mode: 'regression' },
@@ -373,7 +373,7 @@ function AutoML({ dataset, setDataset }) {
         try {
             const backendDatasetId = await ensureDatasetOnBackend()
 
-            const VITE_API_URL = import.meta.env.VITE_API_URL || ''
+            const apiUrl = import.meta.env.VITE_API_URL || ''
             const API_KEY = import.meta.env.VITE_API_KEY || 'dev-local-9f4e1d2c7a8b3f6e'
             const authHeaders = {
                 'Content-Type': 'application/json',
@@ -383,7 +383,7 @@ function AutoML({ dataset, setDataset }) {
 
             let response
             if (config.workflow === 'clustering') {
-                response = await fetch(`${VITE_API_URL}/api/ml/cluster`, {
+                response = await fetch(`${apiUrl}/api/ml/cluster`, {
                     method: 'POST',
                     headers: authHeaders,
                     body: JSON.stringify({
@@ -396,7 +396,7 @@ function AutoML({ dataset, setDataset }) {
                     })
                 })
             } else if (config.workflow === 'compare') {
-                response = await fetch(`${VITE_API_URL}/api/ml/train`, {
+                response = await fetch(`${apiUrl}/api/ml/train`, {
                     method: 'POST',
                     headers: authHeaders,
                     body: JSON.stringify({
@@ -411,7 +411,7 @@ function AutoML({ dataset, setDataset }) {
                     })
                 })
             } else {
-                response = await fetch(`${VITE_API_URL}/api/ml/train-selected`, {
+                response = await fetch(`${apiUrl}/api/ml/train-selected`, {
                     method: 'POST',
                     headers: authHeaders,
                     body: JSON.stringify({

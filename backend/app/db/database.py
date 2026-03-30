@@ -1,5 +1,6 @@
 """
-Database configuration supporting PostgreSQL and Firebase
+Database configuration — SQLAlchemy with optional PostgreSQL.
+Firebase support removed (unused).
 """
 
 from sqlalchemy import create_engine
@@ -11,67 +12,39 @@ from app.utils.config import settings
 
 logger = logging.getLogger(__name__)
 
-# SQLAlchemy setup for PostgreSQL
 engine = None
 SessionLocal = None
 Base = declarative_base()
 
 
-def init_db():
-    """Initialize database connection"""
+def init_db() -> None:
+    """Initialize database connection and create tables."""
     global engine, SessionLocal
 
-    if settings.database_url:
-        logger.info("Initializing PostgreSQL database")
-        engine = create_engine(
-            settings.database_url, pool_pre_ping=True, pool_size=10, max_overflow=20
-        )
-        SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    if not settings.database_url:
+        logger.warning("No DATABASE_URL configured — database features disabled.")
+        return
 
-        # Create tables
-        Base.metadata.create_all(bind=engine)
-        logger.info("Database initialized successfully")
-    else:
-        logger.warning("No database URL configured")
+    logger.info("Initializing database")
+    engine = create_engine(
+        settings.database_url,
+        pool_pre_ping=True,
+        pool_size=10,
+        max_overflow=20,
+    )
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    Base.metadata.create_all(bind=engine)
+    logger.info("Database initialized successfully")
 
 
 def get_db():
-    """Dependency for getting DB session"""
+    """FastAPI dependency for a database session."""
     if SessionLocal is None:
         init_db()
-
+    if SessionLocal is None:
+        raise RuntimeError("Database is not configured. Set DATABASE_URL.")
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
-
-
-# Firebase setup (optional)
-firebase_db = None
-
-
-def init_firebase():
-    """Initialize Firebase (optional alternative to PostgreSQL)"""
-    global firebase_db
-
-    try:
-        import firebase_admin
-        from firebase_admin import credentials, firestore
-
-        # Initialize Firebase app
-        if not firebase_admin._apps:
-            cred = credentials.Certificate("firebase-credentials.json")
-            firebase_admin.initialize_app(cred)
-
-        firebase_db = firestore.client()
-        logger.info("Firebase initialized successfully")
-    except Exception as e:
-        logger.warning(f"Firebase initialization failed: {str(e)}")
-
-
-def get_firebase_db():
-    """Get Firebase Firestore client"""
-    if firebase_db is None:
-        init_firebase()
-    return firebase_db

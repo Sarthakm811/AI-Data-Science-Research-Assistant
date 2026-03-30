@@ -44,6 +44,9 @@ from app.preprocessing import DataPreprocessor
 
 router = APIRouter(tags=["runtime"], dependencies=[Depends(require_api_key), Depends(bind_tenant_context)])
 
+# In-memory report history store: session_id -> list of report metadata
+REPORT_HISTORY: Dict[str, List[Dict[str, Any]]] = {}
+
 
 class TrainRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
@@ -264,7 +267,7 @@ def _resolve_model(model_name: str, task_type: str):
         TheilSenRegressor,
     )
     from sklearn.multioutput import MultiOutputClassifier, MultiOutputRegressor
-    from sklearn.naive_bayes import BernoulliNB, ComplementNB, GaussianNB, MultinomialNB
+    from sklearn.naive_bayes import BernoulliNB, GaussianNB
     from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
     from sklearn.neural_network import MLPClassifier, MLPRegressor
     from sklearn.svm import SVC, SVR, LinearSVC, LinearSVR
@@ -538,19 +541,19 @@ def _apply_category_standardization(cleaned: pd.DataFrame, req: DataCleaningRequ
     for col in selected_cols:
         mapping = normalized_mappings.get(col, {})
 
-        def _normalize(v: Any) -> Any:
+        # Capture mapping and case_mode by value via default args (B023)
+        def _normalize(v: Any, _mapping: dict = mapping, _case: str = case_mode) -> Any:
             if _is_missing(v):
                 return v
             text = str(v).strip()
-            lookup = mapping.get(text.lower())
+            lookup = _mapping.get(text.lower())
             if lookup is not None:
                 text = lookup
-
-            if case_mode == "lower":
+            if _case == "lower":
                 return text.lower()
-            if case_mode == "upper":
+            if _case == "upper":
                 return text.upper()
-            if case_mode == "title":
+            if _case == "title":
                 return text.title()
             return text
 
@@ -612,7 +615,8 @@ def _clean_dataframe(df: pd.DataFrame, req: DataCleaningRequest) -> tuple[pd.Dat
     else:
         for col in cleaned.columns:
             fill_value = _choose_fill_value(cleaned[col], req.missing_strategy)
-            cleaned[col] = cleaned[col].apply(lambda v: fill_value if _is_missing(v) else v)
+            # Use default arg to capture fill_value by value, not by reference (B023)
+            cleaned[col] = cleaned[col].apply(lambda v, fv=fill_value: fv if _is_missing(v) else v)
 
     if req.remove_duplicates:
         cleaned = cleaned.drop_duplicates().copy()
@@ -1294,7 +1298,7 @@ def get_preprocessing_options() -> Dict[str, List[str]]:
 
 
 @router.post("/eda/analyze")
-def run_eda(dataset_id: str) -> Dict[str, Any]:
+def run_eda(dataset_id: str = Query(...)) -> Dict[str, Any]:
     if dataset_id not in DATASETS:
         raise HTTPException(status_code=404, detail="Dataset not found")
 
@@ -1303,7 +1307,7 @@ def run_eda(dataset_id: str) -> Dict[str, Any]:
 
 
 @router.post("/eda/statistical-tests")
-def statistical_tests(dataset_id: str, column1: str, column2: Optional[str] = None) -> Dict[str, Any]:
+def statistical_tests(dataset_id: str = Query(...), column1: str = Query(...), column2: Optional[str] = Query(default=None)) -> Dict[str, Any]:
     if dataset_id not in DATASETS:
         raise HTTPException(status_code=404, detail="Dataset not found")
 
@@ -1733,7 +1737,7 @@ def get_shap_values(dataset_id: str, model_id: str, num_samples: int = 100) -> D
 
 
 @router.post("/explain/feature-importance")
-def get_feature_importance(model_id: str) -> Dict[str, Any]:
+def get_feature_importance(model_id: str = Query(...)) -> Dict[str, Any]:
     if model_id not in TRAINED_MODELS:
         raise HTTPException(status_code=404, detail="Model not found")
 
@@ -1800,24 +1804,6 @@ def chat_history(session_id: str) -> Dict[str, Any]:
     return {"history": CHAT_HISTORY.get(session_id, [])}
 
 
-@router.post("/sessions")
-def create_session(payload: Dict[str, Any]) -> Dict[str, Any]:
-    session_id = str(uuid.uuid4())
-    now = datetime.now(timezone.utc).isoformat()
-    CHAT_HISTORY[session_id] = []
-    return {
-        "session_id": session_id,
-        "created_at": now,
-        "last_activity": now,
-        "user_id": payload.get("user_id"),
-    }
-
-
-@router.get("/sessions/{session_id}/history")
-def session_history(session_id: str) -> Dict[str, Any]:
-    return {"history": CHAT_HISTORY.get(session_id, [])}
-
-
 @router.post("/query")
 def query(req: QueryRequest) -> Dict[str, Any]:
     response = (
@@ -1831,16 +1817,6 @@ def query(req: QueryRequest) -> Dict[str, Any]:
         "status": "completed",
         "explanation": response,
     }
-
-
-@router.post("/query/enhanced")
-def enhanced_query(req: QueryRequest) -> Dict[str, Any]:
-    return query(req)
-
-
-@router.post("/query/langchain")
-def langchain_query(req: QueryRequest) -> Dict[str, Any]:
-    return query(req)
 
 
 @router.post("/analysis/auto")
@@ -1881,6 +1857,59 @@ def analysis_auto(req: AutoAnalysisRequest) -> Dict[str, Any]:
             }
 
     return result
+
+
+@router.post("/report/generate")
+def generate_report(
+    dataset_id: str = Query(...),
+    type: str = Query(default="pdf"),
+    session_id: Optional[str] = Query(default=None),
+) -> Any:
+    """Generate a PDF or JSON report for a dataset."""
+    if dataset_id not in DATASETS:
+        raise HTTPException(status_code=404, detail="Dataset not found")
+
+    df = DATASETS[dataset_id]
+    report_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc).isoformat()
+
+    # Record in history
+    if session_id:
+        REPORT_HISTORY.setdefault(session_id, []).append({
+            "report_id": report_id,
+            "dataset_id": dataset_id,
+            "type": type,
+            "created_at": now,
+        })
+
+    if type == "pdf":
+        try:
+            from reports.pdf_generator import EDAPDFReport
+        except ImportError:
+            raise HTTPException(status_code=503, detail="PDF generation dependencies not available")
+
+        pdf_bytes = EDAPDFReport(df, dataset_name=dataset_id).generate_report()
+        return StreamingResponse(
+            io.BytesIO(pdf_bytes),
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="report_{dataset_id}.pdf"'},
+        )
+
+    # JSON summary report
+    eda_result = eda_engine.full_analysis(df)
+    return {
+        "report_id": report_id,
+        "dataset_id": dataset_id,
+        "created_at": now,
+        "type": "json",
+        "eda": eda_result,
+    }
+
+
+@router.get("/reports/history/{session_id}")
+def get_report_history(session_id: str) -> Dict[str, Any]:
+    """Get report generation history for a session."""
+    return {"history": REPORT_HISTORY.get(session_id, [])}
 
 
 @router.post("/kaggle/search")

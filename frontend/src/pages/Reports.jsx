@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { FileText, Download, Loader, CheckCircle, AlertCircle, BarChart3, Brain, Sigma, Eye, Settings, RefreshCw } from 'lucide-react'
+import { FileText, Download, Loader, CheckCircle, AlertCircle, BarChart3 } from 'lucide-react'
 import { useAnalysis } from '../context/AnalysisContext'
 
 function Reports({ dataset }) {
