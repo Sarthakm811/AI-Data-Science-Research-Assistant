@@ -1078,17 +1078,30 @@ def statistics_math_analysis(request: StatisticsMathRequest) -> Dict[str, Any]:
 async def upload_dataset(file: UploadFile = File(...)) -> Dict[str, Any]:
     try:
         content = await file.read()
+
+        # Reject empty files immediately
+        if not content:
+            raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+
         df = read_uploaded_dataframe(file, content)
 
-        stem = (file.filename or "dataset").split(".")[0]
-        dataset_id = f"ds_{len(DATASETS)}_{stem}"
+        if df.empty:
+            raise HTTPException(status_code=400, detail="File parsed successfully but contains no data rows.")
+
+        # Use a UUID suffix to avoid ID collisions on concurrent uploads
+        import uuid as _uuid
+        stem = (file.filename or "dataset").rsplit(".", 1)[0][:40]  # cap stem length
+        dataset_id = f"ds_{_uuid.uuid4().hex[:8]}_{stem}"
         DATASETS[dataset_id] = df
+
+        # Return up to 500 rows so in-memory operations (cleaning, feature eng) work on a meaningful sample
+        preview_rows = min(500, len(df))
 
         return {
             "id": dataset_id,
             "name": file.filename,
             "headers": df.columns.tolist(),
-            "rows": df.head(100).to_dict("records"),
+            "rows": df.head(preview_rows).to_dict("records"),
             "rowCount": int(len(df)),
             "colCount": int(len(df.columns)),
             "dtypes": {k: str(v) for k, v in df.dtypes.to_dict().items()},
@@ -1096,7 +1109,7 @@ async def upload_dataset(file: UploadFile = File(...)) -> Dict[str, Any]:
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        raise HTTPException(status_code=500, detail=f"Upload failed: {exc}") from exc
 
 
 @router.get("/dataset/{dataset_id}")

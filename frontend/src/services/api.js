@@ -77,8 +77,13 @@ export const datasetAPI = {
     },
 
     async uploadDataset(file) {
-        const formData = new FormData();
-        formData.append('file', file);
+        // Validate file size client-side (50 MB limit)
+        const MAX_MB = 50
+        if (file.size > MAX_MB * 1024 * 1024) {
+            throw new Error(`File is too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum allowed size is ${MAX_MB} MB.`)
+        }
+        const formData = new FormData()
+        formData.append('file', file)
         const response = await fetch(`${API_V1}/datasets/upload`, {
             method: 'POST',
             headers: {
@@ -86,9 +91,17 @@ export const datasetAPI = {
                 'X-Tenant-Id': TENANT_ID
             },
             body: formData
-        });
-        if (!response.ok) throw new Error('Failed to upload dataset');
-        return response.json();
+        })
+        if (!response.ok) {
+            // Surface the real backend error message
+            let detail = 'Failed to upload dataset'
+            try {
+                const err = await response.json()
+                detail = err.detail || err.message || detail
+            } catch (_) { }
+            throw new Error(detail)
+        }
+        return response.json()
     },
 
     async deleteDataset(datasetId) {
@@ -438,12 +451,16 @@ export const kaggleAPI = {
  * Otherwise uploads the in-memory rows as CSV and returns the new backend id.
  */
 export async function ensureBackendDataset(dataset) {
+    // If the dataset already has a backend id, the full data is already there — use it directly.
     if (dataset?.id) return dataset.id
 
     if (!dataset?.headers?.length) throw new Error('Dataset has no headers to upload.')
 
     const headers = dataset.headers
     const rows = dataset.rows || []
+
+    if (rows.length === 0) throw new Error('Dataset has no rows to upload.')
+
     const escapeCell = (v) => {
         const t = v == null ? '' : String(v)
         return (t.includes(',') || t.includes('"') || t.includes('\n'))
