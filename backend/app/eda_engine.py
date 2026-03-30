@@ -386,66 +386,6 @@ class EDAEngine:
     def _get_trend_insights(self, df: pd.DataFrame, stats: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         trends = []
         for s in stats:
-            if abs(s["skewness"]) > 2:
-                trends.append({
-                    "title": f"Extreme Skewness in {s['name']}",
-                    "detail": f"This feature is heavily {s['trend']}. Consider log transformation for ML models.",
-                    "confidence": "High"
-                })
-            
-            # Simple check for values concentration
-            if s["cv"] < 10:
-                trends.append({
-                    "title": f"Low Variance in {s['name']}",
-                    "detail": f"Values are highly concentrated around the mean ({s['mean']:.2f}).",
-                    "confidence": "Medium"
-                })
-        return trends
-
-    def _get_segmentation_insights(self, df: pd.DataFrame, categorical: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        segs = []
-        for c in categorical:
-            if c["dominance"] > 60:
-                top_val = c["topValues"][0]["name"]
-                segs.append({
-                    "title": f"Dominant Category in {c['name']}",
-                    "detail": f"Group '{top_val}' accounts for {c['dominance']}% of all records.",
-                    "confidence": "Very High"
-                })
-            
-            if c["uniqueValues"] > 50:
-                segs.append({
-                    "title": f"High Cardinality in {c['name']}",
-                    "detail": f"Contains {c['uniqueValues']} unique categories. May require encoding optimization.",
-                    "confidence": "Medium"
-                })
-        return segs
-
-    def _get_behavioral_insights(self, df: pd.DataFrame, stats: List[Dict[str, Any]], categorical: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        behavioral = []
-        # Missing data correlation/patterns
-        missing_count = df.isna().sum().sum()
-        if missing_count > 0:
-            behavioral.append({
-                "title": "Missing Value Clusters",
-                "detail": f"Found {missing_count} missing cells across the dataset.",
-                "confidence": "Medium"
-            })
-            
-        # Entropy check
-        for c in categorical:
-            if c["entropy"] > 4:
-                behavioral.append({
-                    "title": f"Informational Variety in {c['name']}",
-                    "detail": f"Contains high data entropy ({c['entropy']}), suggesting diverse informational content.",
-                    "confidence": "Low"
-                })
-                
-        return behavioral
-
-    def _get_trend_insights(self, df: pd.DataFrame, stats: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        trends = []
-        for s in stats:
             if abs(s.get("skewness", 0)) > 1.5:
                 trends.append({
                     "title": f"Distribution Bias in {s['name']}",

@@ -153,36 +153,6 @@ function scoreBusinessAnswerConfidence(question, results) {
     return { label: 'Low', score: 48, tone: 'red' }
 }
 
-function toNumber(value) {
-    const n = Number.parseFloat(value)
-    return Number.isFinite(n) ? n : null
-}
-
-function looksLikeDate(value) {
-    if (value === null || value === undefined || value === '') return false
-    const parsed = new Date(value)
-    return !Number.isNaN(parsed.getTime())
-}
-
-function inferDateColumns(headers, rows) {
-    const sampleRows = rows.slice(0, 80)
-    return headers.filter((col) => {
-        const values = sampleRows
-            .map((r) => r[ col ])
-            .filter((v) => v !== null && v !== undefined && String(v).trim() !== '')
-        if (!values.length) return false
-        const valid = values.filter((v) => looksLikeDate(v)).length
-        return valid / values.length >= 0.7
-    })
-}
-
-function pickNumericByKeyword(numericColumns, keywords) {
-    const lowered = numericColumns.map((c) => c.toLowerCase())
-    const found = lowered.find((col) => keywords.some((k) => col.includes(k)))
-    if (!found) return null
-    return numericColumns.find((c) => c.toLowerCase() === found) || null
-}
-
 function AutoEDA({ dataset }) {
     const [ analyzing, setAnalyzing ] = useState(false)
     const [ results, setResults ] = useState(null)
@@ -271,7 +241,12 @@ function AutoEDA({ dataset }) {
 
         const localAnswer = createBusinessAnswer(question, results)
         const confidence = scoreBusinessAnswerConfidence(question, results)
-        const datasetId = dataset?.id || dataset?.datasetId || null
+
+        // Resolve backend dataset id — dataset.id is set after ensureBackendDataset runs
+        let datasetId = dataset?.id || null
+        if (!datasetId && dataset) {
+            try { datasetId = await ensureBackendDataset(dataset) } catch (_) { /* best-effort */ }
+        }
 
         try {
             let backendAnswer = ''
@@ -1022,7 +997,7 @@ function AutoEDA({ dataset }) {
                                     <h3 className="text-lg font-semibold mb-4">Quality Dimensions</h3>
                                     <ResponsiveContainer width="100%" height={250}>
                                         <RadialBarChart cx="50%" cy="50%" innerRadius="20%" outerRadius="90%" data={results.qualityRadar} startAngle={180} endAngle={0}>
-                                            <RadialBar minAngle={15} background clockWise dataKey="value" fill="#8b5cf6" />
+                                            <RadialBar minAngle={15} background clockWise dataKey="A" fill="#8b5cf6" />
                                             <Legend iconSize={10} layout="horizontal" verticalAlign="bottom" />
                                             <Tooltip />
                                         </RadialBarChart>
