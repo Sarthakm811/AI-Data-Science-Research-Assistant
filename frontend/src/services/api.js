@@ -222,10 +222,14 @@ export const edaAPI = {
             body: JSON.stringify({
                 session_id: sessionId,
                 dataset_id: datasetId,
-                analysis_type: 'full'
+                analysis_type: 'eda'
             })
         });
-        if (!response.ok) throw new Error('Failed to analyze dataset');
+        if (!response.ok) {
+            let detail = 'Failed to analyze dataset'
+            try { const err = await response.json(); detail = err.detail || detail } catch (_) { }
+            throw new Error(detail)
+        }
         return response.json();
     },
 

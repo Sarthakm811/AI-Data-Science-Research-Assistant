@@ -203,7 +203,8 @@ function AutoEDA({ dataset }) {
             const backendId = await ensureBackendDataset(dataset)
             const sessionId = qaSessionId || `eda-${Date.now()}`
             const analysisResponse = await edaAPI.analyzeDataset(backendId, sessionId)
-            const edaResults = analysisResponse.eda || analysisResponse
+            const edaResults = analysisResponse.eda
+            if (!edaResults) throw new Error('Backend returned no EDA results. Check server logs.')
             setResults(edaResults)
             setEdaResults(edaResults)
             setBusinessAnswer('')
@@ -226,7 +227,8 @@ function AutoEDA({ dataset }) {
                 typeCount: [], numericColumns: [], dateColumns: [],
                 correlationHeatmap: { labels: [], values: [] },
                 missingHeatmap: { labels: [], rowLabels: [], values: [] },
-                trendInsights: [], segmentationInsights: [], comparativeInsights: [], behavioralInsights: []
+                trendInsights: [], segmentationInsights: [], comparativeInsights: [], behavioralInsights: [],
+                recommendations: []
             })
         }
         setAnalyzing(false)

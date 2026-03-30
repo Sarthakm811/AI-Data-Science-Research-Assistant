@@ -183,12 +183,12 @@ class EDAEngine:
 
         results = []
         n_rows = len(df)
-        
+
         for col in num.columns:
             s = num[col].dropna()
             if s.empty:
                 continue
-                
+
             desc = s.describe().to_dict()
             q1 = desc.get("25%", 0)
             q3 = desc.get("75%", 0)
@@ -196,41 +196,54 @@ class EDAEngine:
             lower = q1 - 1.5 * iqr
             upper = q3 + 1.5 * iqr
             outliers = int(((s < lower) | (s > upper)).sum())
-            
-            # Simple histogram for distribution
-            counts, bins = np.histogram(s, bins=10)
-            distribution = [{"bin": f"{bins[i]:.2f}-{bins[i+1]:.2f}", "count": int(counts[i])} for i in range(len(counts))]
-            
-            skew = float(s.skew())
-            # Modality check
+
+            # Distribution histogram (fixed 10 bins for display)
+            try:
+                counts, bins = np.histogram(s, bins=min(10, max(1, s.nunique())))
+                distribution = [
+                    {"bin": f"{bins[i]:.2f}-{bins[i+1]:.2f}", "count": int(counts[i])}
+                    for i in range(len(counts))
+                ]
+            except Exception:
+                distribution = []
+
+            skew = float(s.skew()) if len(s) >= 3 else 0.0
+
+            # Modality check — use separate histogram, don't overwrite distribution
             unique_vals = s.nunique()
             if unique_vals < 20:
                 modality = "Unimodal (Categorical-like)"
             else:
-                counts, bins = np.histogram(s, bins=int(np.clip(s.nunique(), 1, 30)))
-                # Find local maxima in histogram
-                max_indices = []
-                for i in range(1, len(counts)-1):
-                    if counts[i] > counts[i-1] and counts[i] > counts[i+1]:
-                        max_indices.append(i)
-                modality = "Multimodal" if len(max_indices) > 1 else "Unimodal"
+                try:
+                    m_counts, _ = np.histogram(s, bins=min(30, unique_vals))
+                    peaks = [
+                        i for i in range(1, len(m_counts) - 1)
+                        if m_counts[i] > m_counts[i - 1] and m_counts[i] > m_counts[i + 1]
+                    ]
+                    modality = "Multimodal" if len(peaks) > 1 else "Unimodal"
+                except Exception:
+                    modality = "Unimodal"
+
+            mean_val = float(desc.get("mean", 0) or 0)
+            std_val = float(desc.get("std", 0) or 0)
+            cv = round((std_val / mean_val * 100), 2) if mean_val != 0 else 0
 
             results.append({
                 "name": col,
-                "mean": float(desc.get("mean", 0)),
-                "median": float(desc.get("50%", 0)),
-                "std": float(desc.get("std", 0)),
-                "min": float(desc.get("min", 0)),
-                "max": float(desc.get("max", 0)),
-                "q1": float(desc.get("25%", 0)),
-                "q3": float(desc.get("75%", 0)),
+                "mean": mean_val,
+                "median": float(desc.get("50%", 0) or 0),
+                "std": std_val,
+                "min": float(desc.get("min", 0) or 0),
+                "max": float(desc.get("max", 0) or 0),
+                "q1": float(q1),
+                "q3": float(q3),
                 "outlierCount": outliers,
                 "outlierPercentage": round((outliers / n_rows) * 100, 2) if n_rows else 0,
                 "skewness": round(skew, 3),
                 "trend": "symmetric" if abs(skew) < 0.5 else ("right-skewed" if skew > 0 else "left-skewed"),
                 "modality": modality,
-                "cv": round((float(desc.get("std", 0)) / float(desc.get("mean", 1)) * 100), 2) if desc.get("mean") else 0,
-                "distribution": distribution
+                "cv": cv,
+                "distribution": distribution,
             })
         return results
 
@@ -245,7 +258,8 @@ class EDAEngine:
         cols = list(corr.columns)
 
         # Sample rows for scatter plots — cap at 200 for UI performance
-        sample_df = num.dropna().sample(min(200, len(num)), random_state=42) if len(num) > 200 else num.dropna()
+        n_after_dropna = len(num.dropna())
+        sample_df = num.dropna().sample(min(200, n_after_dropna), random_state=42) if n_after_dropna > 0 else num.dropna()
 
         for i in range(len(cols)):
             for j in range(i + 1, len(cols)):
@@ -317,16 +331,17 @@ class EDAEngine:
 
     def _calculate_quality_score(self, df: pd.DataFrame, missing: List[Dict[str, Any]], stats: List[Dict[str, Any]]) -> int:
         score = 100
-        # Penalty for missing data
-        total_missing_pct = sum(m["percentage"] for m in missing) / max(len(df.columns), 1)
-        score -= min(40, total_missing_pct * 2)
-        
-        # Penalty for outliers
-        total_outliers = sum(s["outlierCount"] for s in stats)
-        outlier_pct = (total_outliers / (len(df) * len(df.columns))) * 100 if not df.empty and len(df.columns) else 0
-        score -= min(20, outlier_pct * 5)
-        
-        return int(max(0, score))
+        if missing:
+            total_missing_pct = sum(m["percentage"] for m in missing) / len(df.columns)
+            score -= min(40, total_missing_pct * 2)
+
+        if stats:
+            total_outliers = sum(s["outlierCount"] for s in stats)
+            total_cells = len(df) * len(df.columns)
+            outlier_pct = (total_outliers / total_cells * 100) if total_cells else 0
+            score -= min(20, outlier_pct * 5)
+
+        return int(max(0, min(100, score)))
 
     def _generate_insights(self, df: pd.DataFrame, missing: List[Dict[str, Any]], stats: List[Dict[str, Any]], correlations: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         insights = []
@@ -493,26 +508,18 @@ class EDAEngine:
         return [{"name": str(k), "value": int(v)} for k, v in counts.items()]
 
     def _get_quality_radar(self, score: int, missing: List[Dict[str, Any]], stats: List[Dict[str, Any]], df: pd.DataFrame) -> List[Dict[str, Any]]:
-        # Completeness based on missing data
-        completeness = 100 - (sum(m["percentage"] for m in missing)/len(missing)) if missing else 100
-        
-        # Uniqueness based on duplicate rows
-        uniqueness = 100 - (df.duplicated().sum() / max(len(df), 1) * 100)
-        
-        # Validity based on outlier percentage (relative)
-        total_vals = len(df) * len(df.columns)
+        completeness = (100 - (sum(m["percentage"] for m in missing) / len(missing))) if missing else 100.0
+        uniqueness = float(100 - (df.duplicated().sum() / max(len(df), 1) * 100))
+        total_vals = len(df) * max(len(df.columns), 1)
         total_outliers = sum(s.get("outlierCount", 0) for s in stats)
-        validity = 100 - (total_outliers / max(total_vals, 1) * 200) # Weight outliers
-        
-        # Consistency - a blend of score and CV
+        validity = float(max(0, 100 - (total_outliers / total_vals * 200)))
         avg_cv = sum(s.get("cv", 0) for s in stats) / max(len(stats), 1)
-        consistency = max(0, score - (avg_cv / 10))
-
+        consistency = float(max(0, score - (avg_cv / 10)))
         return [
-            {"subject": "Completeness", "A": max(0, completeness)},
-            {"subject": "Consistency", "A": max(0, consistency)},
-            {"subject": "Validity", "A": max(0, validity)},
-            {"subject": "Uniqueness", "A": max(0, uniqueness)},
+            {"subject": "Completeness", "A": round(max(0.0, min(100.0, completeness)), 1)},
+            {"subject": "Consistency",  "A": round(max(0.0, min(100.0, consistency)), 1)},
+            {"subject": "Validity",     "A": round(max(0.0, min(100.0, validity)), 1)},
+            {"subject": "Uniqueness",   "A": round(max(0.0, min(100.0, uniqueness)), 1)},
         ]
 
     def _recommendations(self, df: pd.DataFrame) -> List[str]:

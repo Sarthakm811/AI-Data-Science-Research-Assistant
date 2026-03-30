@@ -1833,28 +1833,34 @@ def analysis_auto(req: AutoAnalysisRequest) -> Dict[str, Any]:
     }
 
     if req.analysis_type in ["full", "eda"]:
-        result["eda"] = eda_engine.full_analysis(df)
+        try:
+            result["eda"] = eda_engine.full_analysis(df)
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=f"EDA analysis failed: {exc}") from exc
 
-    if req.analysis_type in ["full", "ml"]:
+    if req.analysis_type == "ml":
         if not req.target_column:
             result["ml"] = {"status": "skipped", "reason": "target_column not provided"}
         elif req.target_column not in df.columns:
             result["ml"] = {"status": "skipped", "reason": "target_column not found"}
         else:
-            ml = ml_engine.train_all_models(
-                df=df,
-                target_column=req.target_column,
-                task_type=req.model_type,
-                use_gpu=True,
-            )
-            model_id = f"model_{req.dataset_id}_{req.target_column}"
-            TRAINED_MODELS[model_id] = ml["best_model"]
-            result["ml"] = {
-                "model_id": model_id,
-                "task_type": ml.get("task_type"),
-                "best_model_name": ml.get("best_model_name"),
-                "models": ml.get("models", []),
-            }
+            try:
+                ml = ml_engine.train_all_models(
+                    df=df,
+                    target_column=req.target_column,
+                    task_type=req.model_type,
+                    use_gpu=True,
+                )
+                model_id = f"model_{req.dataset_id}_{req.target_column}"
+                TRAINED_MODELS[model_id] = ml["best_model"]
+                result["ml"] = {
+                    "model_id": model_id,
+                    "task_type": ml.get("task_type"),
+                    "best_model_name": ml.get("best_model_name"),
+                    "models": ml.get("models", []),
+                }
+            except Exception as exc:
+                raise HTTPException(status_code=500, detail=f"ML training failed: {exc}") from exc
 
     return result
 
