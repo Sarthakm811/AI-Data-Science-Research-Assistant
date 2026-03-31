@@ -424,11 +424,12 @@ function AutoML({ dataset, setDataset }) {
                 })
             }
 
-            const payload = await response.json()
+            const payload = await response.json().catch(() => ({}))
             if (!response.ok) {
-                throw new Error(payload?.detail || 'Training failed')
+                throw new Error(payload?.detail || `Training failed (${response.status})`)
             }
 
+            const bestModelObj = payload.models?.[ 0 ] || {}
             const normalized = {
                 ...payload,
                 taskType: payload.taskType || payload.task_type || (config.workflow === 'clustering' ? 'clustering' : config.modelMode),
@@ -436,6 +437,36 @@ function AutoML({ dataset, setDataset }) {
                 selectedX: config.xColumns,
                 selectedY: config.yColumns,
                 dataset_id: backendDatasetId,
+                // train-selected → top-level `metrics` object
+                // train-all (compare) → metrics are flat keys on each model, no top-level metrics
+                // Hoist best model's flat keys into a unified metrics object
+                metrics: payload.metrics || {
+                    r2: bestModelObj.r2,
+                    mae: bestModelObj.mae,
+                    // ml_engine only sets rmse, not mse — derive mse from rmse
+                    mse: bestModelObj.mse ?? (bestModelObj.rmse != null ? bestModelObj.rmse * bestModelObj.rmse : undefined),
+                    rmse: bestModelObj.rmse,
+                    accuracy: bestModelObj.accuracy,
+                    precision: bestModelObj.precision,
+                    recall: bestModelObj.recall,
+                    f1: bestModelObj.f1,
+                    roc_auc: bestModelObj.roc_auc,
+                    roc_curve: bestModelObj.roc_curve,
+                    silhouette: bestModelObj.silhouette,
+                    inertia: bestModelObj.inertia,
+                    cv_mean: bestModelObj.cv_mean,
+                    cv_std: bestModelObj.cv_std,
+                    bias_proxy: bestModelObj.bias_proxy,
+                    variance_proxy: bestModelObj.variance_proxy,
+                    bias_level: bestModelObj.bias_level,
+                    variance_level: bestModelObj.variance_level,
+                    calinski_harabasz: bestModelObj.calinski_harabasz,
+                    davies_bouldin: bestModelObj.davies_bouldin,
+                },
+                // Normalise feature importance key
+                featureImportance: payload.featureImportance || payload.feature_importance || bestModelObj.feature_importance || [],
+                // Normalise confusion matrix
+                confusion_matrix: payload.confusion_matrix || bestModelObj.confusion_matrix || null,
                 business_context: {
                     metric: config.businessMetric,
                     target: Number(config.businessTarget),

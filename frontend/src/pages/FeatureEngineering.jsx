@@ -501,19 +501,36 @@ function FeatureEngineering({ dataset, setDataset }) {
                 // Feature importance
                 let importance = []
                 if (targetColumn && engineeredHeaders.includes(targetColumn)) {
-                    const targetValues = rows.map((r) => r[ targetColumn ])
-                    importance = engineeredHeaders
-                        .filter((col) => col !== targetColumn)
-                        .map((col) => {
-                            const values = rows.map((r) => r[ col ])
-                            const score = Math.abs(pearsonCorrelation(values, targetValues))
-                            return {
-                                feature: col,
-                                importance: Number.isFinite(score) ? Number(score.toFixed(4)) : 0
-                            }
-                        })
-                        .sort((a, b) => b.importance - a.importance)
-                        .slice(0, 20)
+                    const rawTargetValues = rows.map((r) => r[ targetColumn ])
+                    // Coerce target to numbers — handles "0"/"1" strings from CSV
+                    const targetValues = rawTargetValues.map((v) => {
+                        const n = toNumber(v)
+                        return Number.isFinite(n) ? n : null
+                    })
+                    const hasNumericTarget = targetValues.filter((v) => v !== null).length >= 3
+
+                    if (hasNumericTarget) {
+                        importance = engineeredHeaders
+                            .filter((col) => col !== targetColumn)
+                            .map((col) => {
+                                const rawVals = rows.map((r) => r[ col ])
+                                const numVals = rawVals.map((v) => toNumber(v))
+                                // Use numeric values if available, else encode strings as indices
+                                const values = numVals.every((v) => Number.isFinite(v))
+                                    ? numVals
+                                    : (() => {
+                                        const uniq = [ ...new Set(rawVals.map(String)) ]
+                                        return rawVals.map((v) => uniq.indexOf(String(v)))
+                                    })()
+                                const score = Math.abs(pearsonCorrelation(values, targetValues))
+                                return {
+                                    feature: col,
+                                    importance: Number.isFinite(score) ? Number(score.toFixed(4)) : 0
+                                }
+                            })
+                            .sort((a, b) => b.importance - a.importance)
+                            .slice(0, 20)
+                    }
                     if (importance.length) {
                         notes.push('Calculated feature importance ranking against target column.')
                     }
@@ -757,7 +774,7 @@ function FeatureEngineering({ dataset, setDataset }) {
                             <select value={reductionMethod} onChange={(e) => setReductionMethod(e.target.value)} className="input-field">
                                 <option value="none">None</option>
                                 <option value="pca">PCA</option>
-                                <option value="tsne">t-SNE</option>
+                                <option value="tsne">t-SNE (slow &gt;100 rows)</option>
                             </select>
                         </div>
                         <div>
@@ -834,15 +851,19 @@ function FeatureEngineering({ dataset, setDataset }) {
                     {transformed.importance.length > 0 && (
                         <div className="card">
                             <h3 className="mb-4 text-lg font-semibold">Feature Importance Ranking</h3>
-                            <ResponsiveContainer width="100%" height={280}>
-                                <BarChart data={transformed.importance.slice(0, 12)} layout="vertical" margin={{ left: 20, right: 20 }}>
-                                    <CartesianGrid strokeDasharray="3 3" />
-                                    <XAxis type="number" domain={[ 0, 1 ]} />
-                                    <YAxis dataKey="feature" type="category" width={180} tick={{ fontSize: 11 }} />
-                                    <Tooltip />
-                                    <Bar dataKey="importance" fill="#0ea5e9" radius={[ 0, 4, 4, 0 ]} />
-                                </BarChart>
-                            </ResponsiveContainer>
+                            {transformed.importance.every(f => f.importance === 0) ? (
+                                <p className="text-sm text-slate-500 py-4">No correlation detected between features and target. Try selecting a numeric target column.</p>
+                            ) : (
+                                <ResponsiveContainer width="100%" height={Math.max(200, transformed.importance.slice(0, 12).length * 32)}>
+                                    <BarChart data={transformed.importance.slice(0, 12)} layout="vertical" margin={{ left: 20, right: 40, top: 4, bottom: 4 }}>
+                                        <CartesianGrid strokeDasharray="3 3" />
+                                        <XAxis type="number" domain={[ 0, 'auto' ]} tickFormatter={(v) => v.toFixed(2)} />
+                                        <YAxis dataKey="feature" type="category" width={160} tick={{ fontSize: 11 }} />
+                                        <Tooltip formatter={(v) => v.toFixed(4)} />
+                                        <Bar dataKey="importance" fill="#0ea5e9" radius={[ 0, 4, 4, 0 ]} minPointSize={3} />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            )}
                         </div>
                     )}
 
@@ -874,7 +895,7 @@ function FeatureEngineering({ dataset, setDataset }) {
                                 <button onClick={applyToDataset} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">Apply As Current Dataset</button>
                                 <button
                                     onClick={saveEngineeredVersion}
-                                    disabled={savingVersion || !dataset?.id}
+                                    disabled={savingVersion}
                                     className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-70"
                                 >
                                     {savingVersion ? 'Saving...' : 'Save Engineered Version'}

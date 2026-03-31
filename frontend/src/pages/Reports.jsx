@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { FileText, Download, Loader, CheckCircle, AlertCircle, BarChart3 } from 'lucide-react'
+import { FileText, Download, Loader, CheckCircle, AlertCircle, BarChart3, Brain, Sigma, Eye, Settings, RefreshCw } from 'lucide-react'
 import { useAnalysis } from '../context/AnalysisContext'
 
 function Reports({ dataset }) {
@@ -14,7 +14,20 @@ function Reports({ dataset }) {
     const generateReport = async () => {
         if (!dataset) return
         setGenerating(true)
-        setTimeout(() => { setReportData(buildReport()); setGenerating(false) }, 1200)
+        setTimeout(() => {
+            try {
+                setReportData(buildReport())
+            } catch (err) {
+                console.error('Report build error:', err)
+                setReportData(`<html><body style="font-family:sans-serif;padding:2rem;color:#dc2626">
+                    <h2>Report Generation Error</h2>
+                    <pre style="background:#fef2f2;padding:1rem;border-radius:8px;overflow:auto">${err?.message || String(err)}</pre>
+                    <p>Check the browser console for details.</p>
+                </body></html>`)
+            } finally {
+                setGenerating(false)
+            }
+        }, 100)
     }
 
     const fv = (v, d = 4) => {

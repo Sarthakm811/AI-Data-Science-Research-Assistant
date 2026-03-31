@@ -3,6 +3,7 @@ import { HashRouter as Router, Routes, Route, useLocation } from 'react-router-d
 import Sidebar from './components/Sidebar'
 import Header from './components/Header'
 import { AnalysisProvider } from './context/AnalysisContext'
+import { ErrorBoundary } from './components/ErrorBoundary'
 
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const DatasetSearch = lazy(() => import('./pages/DatasetSearch'))
@@ -46,17 +47,19 @@ function AppLayout({ dataset, setDataset, isMobile, sidebarOpen, setSidebarOpen 
                                 </div>
                             )}
                         >
-                            <Routes>
-                                <Route path="/" element={<Dashboard dataset={dataset} />} />
-                                <Route path="/search" element={<DatasetSearch setDataset={setDataset} />} />
-                                <Route path="/cleaning" element={<DataCleaning dataset={dataset} setDataset={setDataset} />} />
-                                <Route path="/features" element={<FeatureEngineering dataset={dataset} setDataset={setDataset} />} />
-                                <Route path="/eda" element={<AutoEDA dataset={dataset} />} />
-                                <Route path="/ml" element={<AutoML dataset={dataset} setDataset={setDataset} />} />
-                                <Route path="/statistics" element={<StatisticsMath dataset={dataset} />} />
-                                <Route path="/chat" element={<AIChat dataset={dataset} />} />
-                                <Route path="/reports" element={<Reports dataset={dataset} />} />
-                            </Routes>
+                            <ErrorBoundary>
+                                <Routes>
+                                    <Route path="/" element={<Dashboard dataset={dataset} />} />
+                                    <Route path="/search" element={<DatasetSearch setDataset={setDataset} />} />
+                                    <Route path="/cleaning" element={<DataCleaning dataset={dataset} setDataset={setDataset} />} />
+                                    <Route path="/features" element={<FeatureEngineering dataset={dataset} setDataset={setDataset} />} />
+                                    <Route path="/eda" element={<AutoEDA dataset={dataset} />} />
+                                    <Route path="/ml" element={<AutoML dataset={dataset} setDataset={setDataset} />} />
+                                    <Route path="/statistics" element={<StatisticsMath dataset={dataset} />} />
+                                    <Route path="/chat" element={<AIChat dataset={dataset} />} />
+                                    <Route path="/reports" element={<Reports dataset={dataset} />} />
+                                </Routes>
+                            </ErrorBoundary>
                         </Suspense>
                     </div>
                 </main>

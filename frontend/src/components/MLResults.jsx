@@ -462,7 +462,7 @@ function MLResults({ results, onApplyClusterToDataset }) {
                         <p className="text-gray-600 text-sm font-medium">Training Time</p>
                     </div>
                     <p className="text-3xl font-bold text-orange-900">
-                        {results.trainingTime ? `${results.trainingTime.toFixed(1)}s` : 'N/A'}
+                        {results.trainingTime != null ? `${Number(results.trainingTime).toFixed(1)}s` : (results.training_time != null ? `${Number(results.training_time).toFixed(1)}s` : 'N/A')}
                     </p>
                 </div>
             </div>
@@ -509,21 +509,21 @@ function MLResults({ results, onApplyClusterToDataset }) {
                 <ResponsiveContainer width="100%" height={350}>
                     <BarChart
                         data={filteredModels.slice(0, 10).map(m => ({
-                            name: m.type.length > 15 ? m.type.substring(0, 15) + '...' : m.type,
+                            name: m.type ? (m.type.length > 15 ? m.type.substring(0, 15) + '...' : m.type) : 'Unknown',
                             meetsBusinessTarget: modelMeetsBusinessTarget(m),
                             ...(isClassification ? {
-                                Accuracy: ((m.accuracy || 0) * 100).toFixed(1),
-                                Precision: ((m.precision || 0) * 100).toFixed(1),
-                                Recall: ((m.recall || 0) * 100).toFixed(1),
-                                F1: ((m.f1 || 0) * 100).toFixed(1)
+                                Accuracy: parseFloat(((m.accuracy || 0) * 100).toFixed(1)),
+                                Precision: parseFloat(((m.precision || 0) * 100).toFixed(1)),
+                                Recall: parseFloat(((m.recall || 0) * 100).toFixed(1)),
+                                F1: parseFloat(((m.f1 || 0) * 100).toFixed(1))
                             } : isClustering ? {
-                                Silhouette: (m.silhouette ?? 0).toFixed(3),
-                                Calinski: (m.calinski_harabasz ?? 0).toFixed(1),
-                                Davies: (m.davies_bouldin ?? 0).toFixed(3)
+                                Silhouette: parseFloat((m.silhouette ?? 0).toFixed(3)),
+                                Calinski: parseFloat((m.calinski_harabasz ?? 0).toFixed(1)),
+                                Davies: parseFloat((m.davies_bouldin ?? 0).toFixed(3))
                             } : {
-                                'R²': (m.r2 || 0).toFixed(3),
-                                RMSE: (m.rmse || 0).toFixed(3),
-                                MAE: (m.mae || 0).toFixed(3)
+                                'R²': parseFloat((m.r2 || 0).toFixed(3)),
+                                RMSE: parseFloat((m.rmse || 0).toFixed(3)),
+                                MAE: parseFloat((m.mae || 0).toFixed(3))
                             })
                         }))}
                         layout="vertical"
@@ -597,10 +597,10 @@ function MLResults({ results, onApplyClusterToDataset }) {
                                     </div>
                                     <p className="text-sm text-gray-500">
                                         {isClassification
-                                            ? `Accuracy: ${(model.accuracy * 100).toFixed(2)}% | F1: ${(model.f1 * 100).toFixed(2)}%`
+                                            ? `Accuracy: ${model.accuracy != null ? (model.accuracy * 100).toFixed(2) : 'N/A'}% | F1: ${model.f1 != null ? (model.f1 * 100).toFixed(2) : 'N/A'}%`
                                             : isClustering
                                                 ? `Silhouette: ${(model.silhouette ?? 0).toFixed(3)} | Calinski: ${(model.calinski_harabasz ?? 0).toFixed(1)}`
-                                                : `R²: ${model.r2?.toFixed(4)} | RMSE: ${model.rmse?.toFixed(4)} | MAE: ${model.mae?.toFixed(4)}`
+                                                : `R²: ${model.r2?.toFixed(4) ?? 'N/A'} | RMSE: ${model.rmse?.toFixed(4) ?? 'N/A'} | MAE: ${model.mae?.toFixed(4) ?? 'N/A'}`
                                         }
                                     </p>
                                     {!isClustering && (model.cv_mean != null || model.cv_std != null) && (
@@ -625,10 +625,10 @@ function MLResults({ results, onApplyClusterToDataset }) {
                                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                                         {isClassification ? (
                                             <>
-                                                <MetricCard label="Accuracy" value={`${(model.accuracy * 100).toFixed(2)}%`} />
-                                                <MetricCard label="Precision" value={`${(model.precision * 100).toFixed(2)}%`} />
-                                                <MetricCard label="Recall" value={`${(model.recall * 100).toFixed(2)}%`} />
-                                                <MetricCard label="F1 Score" value={`${(model.f1 * 100).toFixed(2)}%`} />
+                                                <MetricCard label="Accuracy" value={model.accuracy != null ? `${(model.accuracy * 100).toFixed(2)}%` : 'N/A'} />
+                                                <MetricCard label="Precision" value={model.precision != null ? `${(model.precision * 100).toFixed(2)}%` : 'N/A'} />
+                                                <MetricCard label="Recall" value={model.recall != null ? `${(model.recall * 100).toFixed(2)}%` : 'N/A'} />
+                                                <MetricCard label="F1 Score" value={model.f1 != null ? `${(model.f1 * 100).toFixed(2)}%` : 'N/A'} />
                                             </>
                                         ) : isClustering ? (
                                             <>

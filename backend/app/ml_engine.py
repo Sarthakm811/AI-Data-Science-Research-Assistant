@@ -501,12 +501,18 @@ class MLEngine:
         # For classification, use stratified sampling to maintain class distribution
         if task_type == "classification":
             from sklearn.model_selection import train_test_split
-            _, X_sampled, _, y_sampled = train_test_split(
-                X, y, 
-                train_size=sample_size,
-                stratify=y,
-                random_state=42
-            )
+            try:
+                _, X_sampled, _, y_sampled = train_test_split(
+                    X, y,
+                    train_size=sample_size,
+                    stratify=y,
+                    random_state=42
+                )
+            except ValueError:
+                # Fallback to random sampling if stratify fails (rare class with 1 sample)
+                indices = np.random.RandomState(42).choice(len(X), size=min(sample_size, len(X)), replace=False)
+                X_sampled = X[indices]
+                y_sampled = y[indices]
             print(f"SAMPLING: Dataset has {len(X)} rows. Using stratified sample of {sample_size} rows for faster training.")
             return X_sampled, y_sampled, True
         else:
@@ -549,8 +555,11 @@ class MLEngine:
         
         # Split data
         if task_type == "classification":
+            # Only stratify if every class has at least 2 samples
+            class_counts = np.bincount(y.astype(int)) if np.issubdtype(np.array(y).dtype, np.integer) else np.array([np.sum(y == c) for c in np.unique(y)])
+            can_stratify = bool(np.all(class_counts >= 2))
             X_train, X_test, y_train, y_test = train_test_split(
-                X, y, test_size=test_size, random_state=42, stratify=y
+                X, y, test_size=test_size, random_state=42, stratify=y if can_stratify else None
             )
         else:
             X_train, X_test, y_train, y_test = train_test_split(
@@ -636,6 +645,7 @@ class MLEngine:
                     metrics = {
                         "r2": float(r2_score(y_test, y_pred)),
                         "rmse": float(np.sqrt(mean_squared_error(y_test, y_pred))),
+                        "mse": float(mean_squared_error(y_test, y_pred)),
                         "mae": float(mean_absolute_error(y_test, y_pred)),
                     }
                     score = metrics["r2"]
