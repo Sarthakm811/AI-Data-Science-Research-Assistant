@@ -42,6 +42,28 @@ artifacts/
 *.csv
 results.json
 
+# Test/lint/build artifacts
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+backend/.pytest_cache/
+backend/.ruff_cache/
+backend/.coverage
+backend/htmlcov/
+
+# Local model/training artifacts
+catboost_info/
+backend/catboost_info/
+
+# Local environment snapshots
+backend/render_venv/
+
+# Lint report dumps
+backend/ruff.txt
+backend/ruff2.txt
+backend/ruff_output.txt
+
 # Secrets
 secrets/
 kaggle.json
