@@ -4,6 +4,8 @@ import uuid
 import logging
 
 from app.utils.config import settings
+from app.runtime_state import DATASETS
+from app.services.dataset_context import format_dataframe_context
 from app.services.session_store import get_store
 from app.tools.kaggle_tool import KaggleTool
 from app.tools.execution_tool import ExecutionTool
@@ -31,9 +33,12 @@ class AgentService:
 
             dataset_summary = ""
             if dataset_id:
-                if self.kaggle_tool is None:
-                    self.kaggle_tool = KaggleTool()
-                dataset_summary = await self.kaggle_tool.get_dataset_summary(dataset_id)
+                if dataset_id in DATASETS:
+                    dataset_summary = format_dataframe_context(DATASETS[dataset_id])
+                else:
+                    if self.kaggle_tool is None:
+                        self.kaggle_tool = KaggleTool()
+                    dataset_summary = await self.kaggle_tool.get_dataset_summary(dataset_id)
                 session_data["current_dataset"] = dataset_id
 
             prompt = self._build_prompt(query, dataset_summary, history)

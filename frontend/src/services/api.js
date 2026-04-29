@@ -6,7 +6,24 @@
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 const API_V1 = `${API_BASE_URL}/api`;
 const API_KEY = import.meta.env.VITE_API_KEY || 'dev-local-9f4e1d2c7a8b3f6e';
-const TENANT_ID = 'public';
+
+function resolveTenantId() {
+    if (typeof window === 'undefined') return import.meta.env.VITE_TENANT_ID || null
+
+    const envTenant = import.meta.env.VITE_TENANT_ID
+    if (envTenant) return envTenant
+
+    const existing = window.localStorage.getItem('tenant_id')
+    if (existing) return existing
+
+    const generated = window.crypto?.randomUUID
+        ? window.crypto.randomUUID()
+        : `tenant-${Date.now()}-${Math.random().toString(16).slice(2)}`
+    window.localStorage.setItem('tenant_id', generated)
+    return generated
+}
+
+const TENANT_ID = resolveTenantId();
 
 // Remove console.log in production
 if (import.meta.env.DEV) {

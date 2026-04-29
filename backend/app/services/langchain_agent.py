@@ -13,6 +13,7 @@ import logging
 from app.utils.config import settings
 from app.tools.kaggle_tool import KaggleTool
 from app.tools.execution_tool import ExecutionTool
+from app.services.dataset_context import format_dataframe_context
 
 logger = logging.getLogger(__name__)
 
@@ -111,6 +112,17 @@ Thought: {agent_scratchpad}
             full_query = query
             if context and context.get("dataset_id"):
                 full_query = f"Using dataset {context['dataset_id']}: {query}"
+
+            dataset_context = ""
+            if context:
+                raw_context = context.get("dataset_context")
+                if isinstance(raw_context, str):
+                    dataset_context = raw_context
+                elif raw_context is not None:
+                    dataset_context = format_dataframe_context(raw_context)
+
+            if dataset_context:
+                full_query = f"{full_query}\n\nLive dataset context:\n{dataset_context}"
 
             # Execute agent
             result = await self.agent.ainvoke({"input": full_query})

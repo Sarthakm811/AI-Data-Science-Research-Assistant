@@ -7,6 +7,8 @@ import logging
 import pandas as pd
 
 from app.utils.config import settings
+from app.runtime_state import DATASETS
+from app.services.dataset_context import format_dataframe_context
 from app.tools.kaggle_tool import KaggleTool
 from app.tools.execution_tool import ExecutionTool
 from app.tools.eda_tool import EDATool
@@ -42,13 +44,14 @@ class EnhancedAgentService:
         try:
             logger.info(f"Starting comprehensive analysis for job {job_id}")
 
-            # Get dataset
+            # Prefer live uploaded data when the dataset is already in memory.
             dataset_path = None
-            if dataset_id:
+            df = None
+            if dataset_id and dataset_id in DATASETS:
+                df = DATASETS[dataset_id].copy()
+            elif dataset_id:
                 dataset_path = await self.kaggle_tool.download_dataset(dataset_id)
 
-            # Load data if available
-            df = None
             if dataset_path:
                 import os
 
@@ -57,6 +60,8 @@ class EnhancedAgentService:
                     df = pd.read_csv(os.path.join(dataset_path, csv_files[0]))
 
             results = {"job_id": job_id, "status": "completed", "query": query}
+            if df is not None:
+                results["dataset_context"] = format_dataframe_context(df)
 
             # Perform Auto EDA
             if auto_eda and df is not None:
@@ -124,6 +129,9 @@ class EnhancedAgentService:
     def _build_insights_prompt(self, query: str, results: Dict[str, Any]) -> str:
         """Build prompt for generating insights"""
         context = []
+
+        if "dataset_context" in results:
+            context.append(f"Dataset Context:\n{results['dataset_context']}")
 
         if "eda_summary" in results:
             context.append(f"EDA Summary:\n{results['eda_summary']}")

@@ -1,18 +1,23 @@
 import math
+import asyncio
 
+import httpx
 import numpy as np
 import pandas as pd
 import pytest
-from fastapi.testclient import TestClient
 from scipy.stats import t as t_dist
 
 from app.main import app
 from app.utils.config import settings
 
 
-@pytest.fixture
-def client():
-    return TestClient(app)
+def _request(method: str, url: str, **kwargs) -> httpx.Response:
+    async def _run():
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+            return await client.request(method, url, **kwargs)
+
+    return asyncio.run(_run())
 
 
 @pytest.fixture
@@ -23,8 +28,9 @@ def auth_headers():
     }
 
 
-def _upload_csv(client: TestClient, auth_headers: dict, csv_text: str, filename: str = "data.csv") -> str:
-    response = client.post(
+def _upload_csv(auth_headers: dict, csv_text: str, filename: str = "data.csv") -> str:
+    response = _request(
+        "POST",
         "/api/datasets/upload",
         headers=auth_headers,
         files={"file": (filename, csv_text, "text/csv")},
@@ -35,7 +41,7 @@ def _upload_csv(client: TestClient, auth_headers: dict, csv_text: str, filename:
     return payload["id"]
 
 
-def test_eda_insight_payload_contract(client, auth_headers):
+def test_eda_insight_payload_contract(auth_headers):
     csv_text = "\n".join(
         [
             "value_a,value_b,segment",
@@ -52,9 +58,10 @@ def test_eda_insight_payload_contract(client, auth_headers):
         ]
     )
 
-    dataset_id = _upload_csv(client, auth_headers, csv_text, filename="insights_contract.csv")
+    dataset_id = _upload_csv(auth_headers, csv_text, filename="insights_contract.csv")
 
-    response = client.post(
+    response = _request(
+        "POST",
         "/api/analysis/auto",
         headers={**auth_headers, "Content-Type": "application/json"},
         json={"session_id": "contract-test", "dataset_id": dataset_id, "analysis_type": "eda"},
@@ -89,16 +96,17 @@ def test_eda_insight_payload_contract(client, auth_headers):
             assert isinstance(item["confidence"], str) and item["confidence"].strip()
 
 
-def test_eda_correlation_ground_truth(client, auth_headers):
+def test_eda_correlation_ground_truth(auth_headers):
     x = np.arange(1, 11)
     y = 2 * x
     z = 11 - x
     df = pd.DataFrame({"x": x, "y": y, "z": z})
     csv_text = df.to_csv(index=False)
 
-    dataset_id = _upload_csv(client, auth_headers, csv_text, filename="corr_truth.csv")
+    dataset_id = _upload_csv(auth_headers, csv_text, filename="corr_truth.csv")
 
-    response = client.post(
+    response = _request(
+        "POST",
         "/api/analysis/auto",
         headers={**auth_headers, "Content-Type": "application/json"},
         json={"session_id": "corr-test", "dataset_id": dataset_id, "analysis_type": "eda"},
@@ -126,7 +134,7 @@ def test_eda_correlation_ground_truth(client, auth_headers):
         assert corr["strength"] in {"Weak", "Moderate", "Strong", "Very Strong"}
 
 
-def test_statistics_math_ground_truth(client, auth_headers):
+def test_statistics_math_ground_truth(auth_headers):
     csv_text = "\n".join(
         [
             "group,category,val",
@@ -143,9 +151,10 @@ def test_statistics_math_ground_truth(client, auth_headers):
         ]
     )
 
-    dataset_id = _upload_csv(client, auth_headers, csv_text, filename="stats_truth.csv")
+    dataset_id = _upload_csv(auth_headers, csv_text, filename="stats_truth.csv")
 
-    response = client.post(
+    response = _request(
+        "POST",
         "/api/statistics-math/analyze",
         headers={**auth_headers, "Content-Type": "application/json"},
         json={

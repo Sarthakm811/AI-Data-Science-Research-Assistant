@@ -4,6 +4,8 @@ from fastapi import APIRouter, HTTPException
 import uuid
 
 from app.schemas.query import QueryRequest, QueryResponse
+from app.runtime_state import DATASETS
+from app.services.dataset_context import format_dataframe_context
 
 router = APIRouter()
 
@@ -24,6 +26,8 @@ async def query_with_langchain(req: QueryRequest):
 
         agent = LangChainAgent()
         context = {"dataset_id": req.dataset_id} if req.dataset_id else {}
+        if req.dataset_id and req.dataset_id in DATASETS:
+            context["dataset_context"] = format_dataframe_context(DATASETS[req.dataset_id])
         result = await agent.run(req.query, context)
 
         return QueryResponse(

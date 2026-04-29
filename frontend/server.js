@@ -414,28 +414,11 @@ app.post('/api/report/generate', (req, res) => {
 app.post('/api/kaggle/search', async (req, res) => {
     const { query, kaggle_username, kaggle_key, page = 1 } = req.body;
 
-    // If no credentials, return mock results
+    // If no credentials, return an empty result set instead of synthetic data.
     if (!kaggle_username || !kaggle_key) {
-        const mockResults = [
-            { id: 'titanic', ref: 'heptapod/titanic', title: 'Titanic - Machine Learning from Disaster', size: '60 KB', downloads: '50K+' },
-            { id: 'iris', ref: 'uciml/iris', title: 'Iris Species Dataset', size: '5 KB', downloads: '100K+' },
-            { id: 'housing', ref: 'camnugent/california-housing-prices', title: 'California Housing Prices', size: '400 KB', downloads: '30K+' },
-            { id: 'mnist', ref: 'oddrationale/mnist-in-csv', title: 'MNIST in CSV', size: '110 MB', downloads: '200K+' },
-            { id: 'wine', ref: 'uciml/red-wine-quality-cortez-et-al-2009', title: 'Red Wine Quality', size: '85 KB', downloads: '25K+' },
-            { id: 'diabetes', ref: 'uciml/pima-indians-diabetes-database', title: 'Pima Indians Diabetes Database', size: '24 KB', downloads: '80K+' },
-            { id: 'heart', ref: 'ronitf/heart-disease-uci', title: 'Heart Disease UCI', size: '12 KB', downloads: '60K+' },
-            { id: 'boston', ref: 'vikrishnan/boston-house-prices', title: 'Boston House Prices', size: '50 KB', downloads: '40K+' }
-        ].filter(d =>
-            d.title.toLowerCase().includes(query.toLowerCase()) ||
-            d.id.includes(query.toLowerCase()) ||
-            d.ref.toLowerCase().includes(query.toLowerCase())
-        );
-
         return res.json({
-            datasets: mockResults.length > 0 ? mockResults : [
-                { id: 'sample', ref: `sample/${query}`, title: `Sample ${query} Dataset`, size: '100 KB', downloads: '10K+' }
-            ],
-            message: 'Using mock data. Add Kaggle credentials for real search.'
+            datasets: [],
+            message: 'Kaggle credentials required for real search.'
         });
     }
 
